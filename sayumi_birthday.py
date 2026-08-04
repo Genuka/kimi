@@ -2,6 +2,8 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 import base64
+import json
+import re
 
 st.set_page_config(page_title="Happy Birthday Sayumi", page_icon="🎂", layout="centered")
 st.markdown("""
@@ -44,6 +46,29 @@ photo_srcs_js = "[" + ",".join(photo_srcs) + "]"
 audio_b64 = img_to_b64("sayumi_singing.ogg")
 audio_src = f"data:audio/ogg;base64,{audio_b64}" if audio_b64 else ""
 
+# load fun facts from facts.txt (same folder as this script)
+# format, one per line:  1. <emoji> <text>
+def load_facts(path="facts.txt"):
+    default = [
+        {"emoji": "🎆", "text": "u came a long way — from the quiet girl in cambridge 6 to the person who threatens to slap me daily. genuinely proud of this era."},
+        {"emoji": "📝", "text": "u wrote me 4 pages. for no reason. tht says everything about who u are."},
+        {"emoji": "🖤", "text": "the black fit era will never end. and honestly? it shouldn't."},
+    ]
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            raw_lines = [l.strip() for l in f if l.strip()]
+    except FileNotFoundError:
+        return default
+    facts = []
+    for line in raw_lines:
+        m = re.match(r'^\d+\.\s*(\S+)\s+(.*)$', line)
+        if m:
+            facts.append({"emoji": m.group(1), "text": m.group(2).strip()})
+    return facts if facts else default
+
+fun_facts = load_facts()
+fun_facts_js = json.dumps(fun_facts, ensure_ascii=False)
+
 html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -56,7 +81,7 @@ html,body{{touch-action:manipulation;}}
 body{{font-family:'DM Sans',sans-serif;overflow:hidden;width:100vw;height:100vh;background:#fff0f5;}}
 button,.key,.next-btn,.btn,.game-yes-btn,.btn-no,.nav-dot,.photo-stage,.play-btn,#progress-wrap,#tap-overlay{{touch-action:manipulation;}}
 #confetti-canvas{{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9999;}}
-.hearts-bg{{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:0;overflow:hidden;}}
+.hearts-bg{{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:150;overflow:hidden;}}
 .heart-float{{position:absolute;animation:floatUp linear infinite;opacity:0;}}
 @keyframes floatUp{{0%{{transform:translateY(100vh) rotate(0deg);opacity:0.7;}}100%{{transform:translateY(-10vh) rotate(360deg);opacity:0;}}}}
 
@@ -197,11 +222,12 @@ button,.key,.next-btn,.btn,.game-yes-btn,.btn-no,.nav-dot,.photo-stage,.play-btn
 .game-result{{font-size:1rem;color:#e879a0;font-family:'Playfair Display',serif;margin-top:0.8rem;animation:popIn 0.4s ease both;display:none;}}
 @keyframes popIn{{from{{opacity:0;transform:scale(0.8);}}to{{opacity:1;transform:scale(1);}}}}
 
-/* FUN FACTS about her */
-.fun-fact-card{{background:white;border-radius:20px;padding:1.5rem;text-align:center;box-shadow:0 4px 24px rgba(167,139,250,0.1);border:1px solid rgba(167,139,250,0.15);width:100%;max-width:500px;animation:fadeSlideUp 0.5s ease both;}}
-.fun-fact-emoji{{font-size:2.5rem;margin-bottom:0.5rem;}}
-.fun-fact-title{{font-family:'Playfair Display',serif;font-size:1rem;color:#6b4f6b;margin-bottom:0.3rem;}}
-.fun-fact-text{{font-size:0.85rem;color:#9d6b8a;line-height:1.6;}}
+/* FUN FACTS about her - scattered layout, count driven by facts.txt */
+.fun-facts-scatter{{width:100%;max-width:520px;display:flex;flex-wrap:wrap;justify-content:center;align-content:center;gap:0.9rem;padding:0.5rem;}}
+.fun-fact-card{{background:white;border-radius:20px;padding:1.2rem 1.4rem;text-align:center;box-shadow:0 4px 24px rgba(167,139,250,0.12);border:1px solid rgba(167,139,250,0.15);width:150px;animation:fadeSlideUp 0.5s ease both;transition:transform 0.25s ease;}}
+.fun-fact-card:hover{{transform:rotate(0deg) scale(1.04) !important;}}
+.fun-fact-emoji{{font-size:2.2rem;margin-bottom:0.4rem;}}
+.fun-fact-text{{font-size:0.8rem;color:#6b4f6b;line-height:1.5;}}
 
 /* MESSAGE */
 .msg-wrap{{width:100%;max-width:500px;background:white;border-radius:24px;padding:1.8rem;box-shadow:0 8px 40px rgba(167,139,250,0.12);border:1px solid rgba(167,139,250,0.18);}}
@@ -255,7 +281,6 @@ button,.key,.next-btn,.btn,.game-yes-btn,.btn-no,.nav-dot,.photo-stage,.play-btn
   <button class="nav-dot" onclick="goTo(6)"></button>
   <button class="nav-dot" onclick="goTo(7)"></button>
   <button class="nav-dot" onclick="goTo(8)"></button>
-  <button class="nav-dot" onclick="goTo(9)"></button>
 </div>
 
 <!-- TAP OVERLAY -->
@@ -327,19 +352,7 @@ button,.key,.next-btn,.btn,.game-yes-btn,.btn-no,.nav-dot,.photo-stage,.play-btn
   <button class="next-btn" onclick="goTo(3)">next &#128151;</button>
 </div>
 
-<!-- PAGE 3: ROASTS -->
-<div class="page" id="page-roasts">
-  <div class="section-label">reasons ur actually the worst &#128557;</div>
-  <div class="fact-card" id="fact-card">
-    <div class="fact-emoji" id="fact-emoji">&#128557;</div>
-    <div class="fact-text" id="fact-text">threatens to slap me literally every other day and has never said sorry once</div>
-    <div class="fact-counter" id="fact-counter">1 / 5</div>
-  </div>
-  <button class="btn btn-outline" onclick="nextRoast()">next roast &#128514;</button>
-  <button class="next-btn" onclick="goTo(4)">next &#128151;</button>
-</div>
-
-<!-- PAGE 4: PHOTOS -->
+<!-- PAGE 3: PHOTOS -->
 <div class="page" id="page-photos">
   <div class="section-label">ur camera roll era &#128248;</div>
   <div class="photo-stage" id="photo-stage" onclick="nextPhoto()">
@@ -347,7 +360,7 @@ button,.key,.next-btn,.btn,.game-yes-btn,.btn-no,.nav-dot,.photo-stage,.play-btn
   </div>
   <div class="photo-dots" id="photo-dots"></div>
   <div class="photo-hint">tap to go to next pic &#128247;</div>
-  <button class="next-btn" onclick="goTo(5)">next &#128151;</button>
+  <button class="next-btn" onclick="goTo(4)">next &#128151;</button>
 </div>
 
 <!-- PAGE 5: GAME -->
@@ -357,11 +370,11 @@ button,.key,.next-btn,.btn,.game-yes-btn,.btn-no,.nav-dot,.photo-stage,.play-btn
     <div class="game-sub" id="game-sub">choose wisely</div>
     <div class="game-arena" id="game-arena">
       <button class="game-yes-btn" id="yes-btn" onclick="yesClicked()">yes &#128151;</button>
-      <button class="btn-no" id="no-btn" onmouseover="runAway()" ontouchstart="runAway()">no</button>
+      <button class="btn-no" id="no-btn">no</button>
     </div>
     <div class="game-result" id="game-result"></div>
   </div>
-  <button class="next-btn" onclick="goTo(6)" style="margin-top:0.8rem;">read my msg &#128140;</button>
+  <button class="next-btn" onclick="goTo(5)" style="margin-top:0.8rem;">read my msg &#128140;</button>
 </div>
 
 <!-- PAGE 6: MESSAGE (scrollable) -->
@@ -370,44 +383,28 @@ button,.key,.next-btn,.btn,.game-yes-btn,.btn-no,.nav-dot,.photo-stage,.play-btn
     <div class="msg-quote">"</div>
     <div class="msg-text">
       happy birthday sayumi &#128151;&#127874; ur officially old now and i hope ur having the best time lmao. i still remember cambridge 6, the quiet nerd in the corner who wouldn't say a word to anyone, BUT NOT NOW OKK?? now she threatens to slap me every day and somehow tht's become one of my fav things about her &#128557;<br><br>
-      ik i've been a bit quiet lately and i'm sorry for tht, but i need u to know tht never changed how much u mean to me. u wrote me 4 whole pages once for jz no reason and i still think about tht, cuz tht's jz who u are. u give so much without even thinking about it and i don't say this enough but i'm so glad to have u in my life. like actually glad, not jz saying it. u've been there through so much and i don't take tht for granted &#129401;<br><br>
+      i need u to know tht never changed how much u mean to me. u wrote me 4 whole pages once for jz no reason and i still think about tht, cuz tht's jz who u are. u give so much without even thinking about it and i don't say this enough but i'm so glad to have u in my life. like actually glad, not jz saying it. u've been there through so much and i don't take tht for granted &#129401;<br><br>
       the kind of bsf tht checks on u, roasts u, threatens to hit u, and somehow still makes u feel like the luckiest person in the room &#128514;&#129782;<br><br>
-      have the best birthday okay. wear black obviously. eat way too much cake. and please jz go talk to geenuka already ur going to give yourself a heart attack every time i say his name &#128557;&#128153;<br><br>
+      have the best birthday okay. eat way too much cake.<br><br>
       cheers to u being a bit older, more unbothered and still living in the same era as me &#127874;&#129782;&#129401;
     </div>
     <div class="msg-sign">— ur bsf, always &#128151;</div>
   </div>
-  <button class="next-btn" onclick="goTo(7)" style="flex-shrink:0;">almost done &#129782;</button>
+  <button class="next-btn" onclick="goTo(6)" style="flex-shrink:0;">almost done &#129782;</button>
 </div>
 
 <!-- PAGE 7: FUN FACTS about Sayumi -->
 <div class="page" id="page-facts">
   <div class="section-label">some things about u &#129401;</div>
-  <div id="fun-facts-wrap" style="width:100%;max-width:500px;display:flex;flex-direction:column;gap:0.8rem;">
-    <div class="fun-fact-card">
-      <div class="fun-fact-emoji">&#127878;</div>
-      <div class="fun-fact-title">u came a long way</div>
-      <div class="fun-fact-text">from the quiet girl in cambridge 6 to the person who threatens to slap me daily. genuinely proud of this era.</div>
-    </div>
-    <div class="fun-fact-card" style="animation-delay:0.1s">
-      <div class="fun-fact-emoji">&#128221;</div>
-      <div class="fun-fact-title">u wrote me 4 pages. for no reason.</div>
-      <div class="fun-fact-text">tht says everything about who u are. u care a lot even when u don't have to.</div>
-    </div>
-    <div class="fun-fact-card" style="animation-delay:0.2s">
-      <div class="fun-fact-emoji">&#128420;</div>
-      <div class="fun-fact-title">the black fit era will never end</div>
-      <div class="fun-fact-text">and honestly? it shouldn't. it works.</div>
-    </div>
-  </div>
-  <button class="next-btn" onclick="goTo(8)">next &#127874;</button>
+  <div id="fun-facts-wrap" class="fun-facts-scatter"></div>
+  <button class="next-btn" onclick="goTo(7)">next &#127874;</button>
 </div>
 
 <!-- PAGE 8: AUDIO -->
 <div class="page" id="page-audio">
   <div class="section-label">wait... is tht her singing? &#127908;</div>
   <div class="audio-card">
-    <div class="audio-title">&#127925; freak of the fall</div>
+    <div class="audio-title">&#127925; Infected</div>
     <div class="audio-sub">featuring: sayumi live &#127908;</div>
     <div class="audio-visualizer" id="visualizer">
       <div class="audio-bar"></div><div class="audio-bar"></div>
@@ -428,7 +425,7 @@ button,.key,.next-btn,.btn,.game-yes-btn,.btn-no,.nav-dot,.photo-stage,.play-btn
     <div class="audio-label">she actually sang this &#128557;&#128151;</div>
   </div>
   <audio id="sayu-audio" src="{audio_src}" preload="metadata"></audio>
-  <button class="next-btn" onclick="goTo(9)" style="margin-top:0.8rem;">last page &#127874;</button>
+  <button class="next-btn" onclick="goTo(8)" style="margin-top:0.8rem;">last page &#127874;</button>
 </div>
 
 <!-- PAGE 9: ENDING -->
@@ -438,7 +435,7 @@ button,.key,.next-btn,.btn,.game-yes-btn,.btn-no,.nav-dot,.photo-stage,.play-btn
     <div class="ending-sub">
       this only happens once a year.<br>
       hope u make it count.<br>
-      wear black. eat cake. be unbothered.<br>
+      eat cake. be unbothered.<br>
       that's the whole plan. &#128151;
     </div>
     <div class="btn-row" style="justify-content:center;margin-bottom:1rem;">
@@ -480,7 +477,7 @@ document.addEventListener('DOMContentLoaded', () => {{
 
 // ---- PAGE SYSTEM ----
 let currentPage = 0;
-const pageIds = ['page-lock','page-hero','page-countdown','page-roasts','page-photos','page-game','page-msg','page-facts','page-audio','page-ending'];
+const pageIds = ['page-lock','page-hero','page-countdown','page-photos','page-game','page-msg','page-facts','page-audio','page-ending'];
 const totalNavPages = 8;
 
 function goTo(idx) {{
@@ -614,26 +611,18 @@ function setNum(id,val){{
 }}
 updateCountdown(); setInterval(updateCountdown,1000);
 
-// ---- ROASTS ----
-const roasts=[
-  {{emoji:'&#128557;',text:"threatens to slap me literally every other day and has never said sorry once"}},
-  {{emoji:'&#128221;',text:"wrote 4 whole pages for no reason at all and thinks tht's totally normal"}},
-  {{emoji:'&#128128;',text:"crashes out every single time geenuka gets mentioned. every. single. time."}},
-  {{emoji:'&#129408;',text:"wears black like it's her whole thing and honestly? fair. it works."}},
-  {{emoji:'&#129504;',text:"was the quietest nerd in cambridge 6 and now won't stop talking or threatening me"}},
-];
-let roastIdx=0;
-function nextRoast(){{
-  const card=document.getElementById('fact-card');
-  card.classList.add('switching');
-  setTimeout(()=>{{
-    roastIdx=(roastIdx+1)%roasts.length;
-    document.getElementById('fact-emoji').innerHTML=roasts[roastIdx].emoji;
-    document.getElementById('fact-text').textContent=roasts[roastIdx].text;
-    document.getElementById('fact-counter').textContent=(roastIdx+1)+' / '+roasts.length;
-    card.classList.remove('switching');
-  }},250);
-}}
+// ---- FUN FACTS (scattered, driven by facts.txt) ----
+const funFacts = {fun_facts_js};
+const funFactsWrap = document.getElementById('fun-facts-wrap');
+funFacts.forEach((f,i) => {{
+  const card = document.createElement('div');
+  card.className = 'fun-fact-card';
+  const rot = (i % 2 === 0 ? 1 : -1) * (2 + ((i*7) % 6));
+  card.style.transform = 'rotate('+rot+'deg)';
+  card.style.animationDelay = (i*0.08)+'s';
+  card.innerHTML = '<div class="fun-fact-emoji">'+f.emoji+'</div><div class="fun-fact-text">'+f.text+'</div>';
+  funFactsWrap.appendChild(card);
+}});
 
 // ---- PHOTO SLIDESHOW ----
 const photoSrcs = {photo_srcs_js};
@@ -669,13 +658,13 @@ function nextPhoto(){{
 
 // ---- GAME ----
 const questions=[
-  {{q:'ur old now aren\\'t u? &#128514;', yesLabel:'yes &#128557;', noLabel:'no', win:'SHE ADMITTED IT &#128514;&#128151; welcome to old age'}},
-  {{q:'should i get slapped rn? &#129767;', yesLabel:'yes obviously', noLabel:'no', win:'she said yes &#128128; i accept my fate'}},
-  {{q:'ur da best bsf right? &#129402;', yesLabel:'yes ofc &#128151;', noLabel:'no', win:'correct!! &#128151; tht was the only right answer'}},
-  {{q:'will u be more active this year? &#128247;', yesLabel:'yes i will &#128151;', noLabel:'no', win:'she promised!! &#128151; i\\'m holding u to tht'}},
-  {{q:'will u enjoy ur bday? &#127874;', yesLabel:'absolutely &#127874;', noLabel:'no', win:'good!! &#127874;&#128151; as it should be!'}},
+  {{q:'ur old now aren\\'t u? &#128514;', yesLabel:'yes &#128557;', noLabel:'no', win:'lessgoo u admitted itt &#128514;&#128151;'}},
+  {{q:'should i be slapped? &#129767;', yesLabel:'no &#128557;', noLabel:'yes', win:'phew... no it is &#128557; saved'}},
+  {{q:'ur da best bsf right? &#129402;', yesLabel:'yes ofc &#128151;', noLabel:'no', win:'lessgoo correct answer only &#128151;'}},
+  {{q:'will u be more active this year? &#128247;', yesLabel:'yes i will &#128151;', noLabel:'no', win:'say less, locked in &#128151;&#128247;'}},
+  {{q:'will u enjoy ur bday? &#127874;', yesLabel:'absolutely &#127874;', noLabel:'no', win:'lessgoo as it should be &#127874;&#128151;'}},
 ];
-let qIdx=0,noEscapes=0,gameWon=false;
+let qIdx=0,noEscapes=0,gameWon=false,lastFleeTime=0;
 const noBtn=document.getElementById('no-btn');
 const yesBtn=document.getElementById('yes-btn');
 const arena=document.getElementById('game-arena');
@@ -690,24 +679,52 @@ function updateGameQuestion(){{
   noBtn.style.top='50%';
 }}
 
-function runAway(){{
+// flee AWAY from the pointer position (px, py are relative to the arena),
+// instead of jumping to a random spot that might still be under the cursor.
+function fleeFrom(px,py){{
   if(gameWon) return;
+  const now=Date.now();
+  if(now-lastFleeTime<220) return; // throttle so it doesn't jitter every pixel of movement
+  lastFleeTime=now;
   noEscapes++;
   const size=Math.max(0.55,0.82-noEscapes*0.04);
   noBtn.style.fontSize=size+'rem';
-  noBtn.style.transition='left 0.4s cubic-bezier(.25,.46,.45,.94),top 0.4s cubic-bezier(.25,.46,.45,.94)';
+  noBtn.style.transition='left 0.4s cubic-bezier(.25,.46,.45,.94),top 0.4s cubic-bezier(.25,.46,.45,.94),font-size 0.2s ease';
   const aw=arena.offsetWidth, ah=arena.offsetHeight;
   const bw=noBtn.offsetWidth, bh=noBtn.offsetHeight;
-  // keep well inside bounds
-  const nx=bw/2+Math.random()*(aw-bw)*0.9+aw*0.0;
-  const ny=bh/2+Math.random()*(ah-bh)*0.9;
-  // avoid yes button area (left 40%)
-  const finalX = nx < aw*0.4 ? aw*0.55+Math.random()*aw*0.35 : nx;
-  noBtn.style.left=Math.min(finalX,aw-bw/2)+'px';
-  noBtn.style.top=Math.max(bh/2,Math.min(ny,ah-bh/2))+'px';
+  const bx=noBtn.offsetLeft+bw/2, by=noBtn.offsetTop+bh/2;
+  let dx=bx-px, dy=by-py;
+  const dist=Math.hypot(dx,dy)||1;
+  const ux=dx/dist, uy=dy/dist;
+  let nx=bx+ux*100+(Math.random()-0.5)*30;
+  let ny=by+uy*70+(Math.random()-0.5)*30;
+  nx=Math.max(bw/2,Math.min(nx,aw-bw/2));
+  ny=Math.max(bh/2,Math.min(ny,ah-bh/2));
+  // stay clear of the yes button (left ~40% of arena)
+  if(nx<aw*0.42) nx=aw*0.55+Math.random()*aw*0.35;
+  noBtn.style.left=nx+'px';
+  noBtn.style.top=ny+'px';
   if(noEscapes>=5) noBtn.textContent='noooo 😭';
   else if(noEscapes>=3) noBtn.textContent='no... 🫣';
 }}
+
+function arenaPointFromMouse(e){{
+  const rect=arena.getBoundingClientRect();
+  return [e.clientX-rect.left, e.clientY-rect.top];
+}}
+function arenaPointFromTouch(e){{
+  const t=e.touches[0]||e.changedTouches[0];
+  if(!t) return null;
+  const rect=arena.getBoundingClientRect();
+  return [t.clientX-rect.left, t.clientY-rect.top];
+}}
+function proximityCheck(px,py){{
+  const bx=noBtn.offsetLeft+noBtn.offsetWidth/2, by=noBtn.offsetTop+noBtn.offsetHeight/2;
+  if(Math.hypot(px-bx,py-by)<75) fleeFrom(px,py);
+}}
+arena.addEventListener('mousemove', e=>{{ const p=arenaPointFromMouse(e); proximityCheck(p[0],p[1]); }});
+arena.addEventListener('touchstart', e=>{{ const p=arenaPointFromTouch(e); if(p) proximityCheck(p[0],p[1]); }}, {{passive:true}});
+arena.addEventListener('touchmove', e=>{{ const p=arenaPointFromTouch(e); if(p) proximityCheck(p[0],p[1]); }}, {{passive:true}});
 
 function yesClicked(){{
   if(gameWon) return;
@@ -735,18 +752,49 @@ const durTime = document.getElementById('dur-time');
 const bars = document.querySelectorAll('.audio-bar');
 let isPlaying = false;
 
+// ---- REAL AUDIO-REACTIVE BARS (Web Audio API) ----
+let audioCtx=null, analyser=null, freqData=null, analyserReady=false;
+function setupAnalyser() {{
+  if (analyserReady) return;
+  try {{
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const sourceNode = audioCtx.createMediaElementSource(audio);
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 64;
+    analyser.smoothingTimeConstant = 0.75;
+    sourceNode.connect(analyser);
+    analyser.connect(audioCtx.destination);
+    freqData = new Uint8Array(analyser.frequencyBinCount);
+    analyserReady = true;
+  }} catch(err) {{ analyserReady = false; }}
+}}
+function animateBars() {{
+  if (analyserReady && !audio.paused) {{
+    analyser.getByteFrequencyData(freqData);
+    bars.forEach((b,i) => {{
+      const idx = 1 + Math.floor(i * (freqData.length-1) / bars.length);
+      const v = freqData[idx] / 255;
+      b.style.height = (6 + v*46) + 'px';
+    }});
+  }} else if (!isPlaying) {{
+    bars.forEach(b => b.style.height = '6px');
+  }}
+  requestAnimationFrame(animateBars);
+}}
+requestAnimationFrame(animateBars);
+
 function togglePlay() {{
   if (!audio.src || audio.src === window.location.href) return;
+  setupAnalyser();
+  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
   if (isPlaying) {{
     audio.pause();
     isPlaying = false;
     playBtn.innerHTML = '&#9654;&#65039;';
-    bars.forEach(b => b.classList.remove('active'));
   }} else {{
     audio.play();
     isPlaying = true;
     playBtn.innerHTML = '&#9646;&#9646;';
-    bars.forEach(b => b.classList.add('active'));
   }}
 }}
 
@@ -770,7 +818,6 @@ audio.addEventListener('loadedmetadata', () => {{
 audio.addEventListener('ended', () => {{
   isPlaying = false;
   playBtn.innerHTML = '&#9654;&#65039;';
-  bars.forEach(b => b.classList.remove('active'));
   progressFill.style.width = '0%';
   curTime.textContent = '0:00';
 }});
