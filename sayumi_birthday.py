@@ -1,1042 +1,789 @@
 import streamlit as st
+import streamlit.components.v1 as components
+
 import base64
-import os
-import random
-from datetime import datetime, timedelta
-import time
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# SAYUMI'S BIRTHDAY SURPRISE — Streamlit App
-# Solves the iframe click issue by using native Streamlit components
-# for ALL interactions. HTML is only used for non-interactive visuals.
-# ═══════════════════════════════════════════════════════════════════════════════
-
-st.set_page_config(
-    page_title="Happy Birthday Sayumi! 🎂",
-    page_icon="🎀",
-    layout="wide",
-    initial_sidebar_state="collapsed"
-)
-
-# ─── SESSION STATE INITIALIZATION ─────────────────────────────────────────────
-def init_state():
-    defaults = {
-        'page': 0,
-        'code': '',
-        'code_error': False,
-        'roast_idx': 0,
-        'photo_idx': 0,
-        'q_idx': 0,
-        'no_escapes': 0,
-        'show_confetti': False,
-        'show_hearts': False,
-        'countdown_target': datetime(2026, 8, 6, 0, 0, 0),
-        'dev_mode': False,
-        'yes_clicked': False,
-        'yes_msg': '',
-        'confetti_key': 0,
-        'hearts_key': 0,
-    }
-    for k, v in defaults.items():
-        if k not in st.session_state:
-            st.session_state[k] = v
-
-init_state()
-
-# ─── HELPERS ──────────────────────────────────────────────────────────────────
-def get_base64_file(filename):
-    """Read a file and return base64 string."""
-    filepath = os.path.join(os.path.dirname(__file__), filename)
-    if os.path.exists(filepath):
-        with open(filepath, "rb") as f:
-            return base64.b64encode(f.read()).decode()
-    return None
-
-def get_photo_base64(idx):
-    return get_base64_file(f"photo{idx}.jpg")
-
-def trigger_confetti():
-    st.session_state.show_confetti = True
-    st.session_state.confetti_key += 1
-
-def trigger_hearts():
-    st.session_state.show_hearts = True
-    st.session_state.hearts_key += 1
-
-# ─── GLOBAL CSS ───────────────────────────────────────────────────────────────
+st.set_page_config(page_title="Happy Birthday Sayumi", page_icon="🎂", layout="centered")
 st.markdown("""
 <style>
-    /* Hide Streamlit UI */
-    #MainMenu {visibility: hidden !important;}
-    footer {visibility: hidden !important;}
-    header {visibility: hidden !important;}
-    .stDeployButton {display: none !important;}
-    .stToolbar {display: none !important;}
-    [data-testid="stSidebar"] {display: none !important;}
-    [data-testid="stBottomBlockContainer"] {display: none !important;}
-
-    /* Remove default padding */
-    .block-container {
-        padding: 0.5rem 1rem 0 !important;
-        max-width: 100% !important;
-    }
-    .main > div {
-        padding: 0 !important;
-    }
-
-    /* Base background */
-    .stApp {
-        background: linear-gradient(135deg, #fce7f3 0%, #e9d5ff 40%, #ffffff 100%) !important;
-        min-height: 100vh;
-    }
-
-    /* Smooth page entrance */
-    .page-container {
-        animation: pageEnter 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-    }
-    @keyframes pageEnter {
-        from { opacity: 0; transform: translateY(30px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
-
-    /* Shake animation for wrong code */
-    .shake {
-        animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
-    }
-    @keyframes shake {
-        10%, 90% { transform: translate3d(-2px, 0, 0); }
-        20%, 80% { transform: translate3d(4px, 0, 0); }
-        30%, 50%, 70% { transform: translate3d(-6px, 0, 0); }
-        40%, 60% { transform: translate3d(6px, 0, 0); }
-    }
-
-    /* Gradient text */
-    .gradient-text {
-        background: linear-gradient(90deg, #ec4899, #8b5cf6, #3b82f6, #ec4899);
-        background-size: 300% 100%;
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-        animation: gradientShift 4s ease infinite;
-        font-weight: 800;
-    }
-    @keyframes gradientShift {
-        0% { background-position: 0% 50%; }
-        50% { background-position: 100% 50%; }
-        100% { background-position: 0% 50%; }
-    }
-
-    /* Card styles */
-    .card {
-        background: rgba(255, 255, 255, 0.85);
-        backdrop-filter: blur(10px);
-        border-radius: 20px;
-        padding: 24px;
-        box-shadow: 0 8px 32px rgba(168, 85, 247, 0.15);
-        border: 1px solid rgba(255, 255, 255, 0.5);
-    }
-
-    /* Floating hearts background (CSS only, injected into main DOM) */
-    .heart-bg {
-        position: fixed;
-        font-size: 22px;
-        pointer-events: none;
-        z-index: 0;
-        opacity: 0.5;
-        animation: floatUp linear infinite;
-    }
-    @keyframes floatUp {
-        0% { transform: translateY(100vh) rotate(0deg); opacity: 0; }
-        15% { opacity: 0.5; }
-        85% { opacity: 0.5; }
-        100% { transform: translateY(-10vh) rotate(360deg); opacity: 0; }
-    }
-
-    /* Confetti particles */
-    .confetti-piece {
-        position: fixed;
-        width: 10px;
-        height: 10px;
-        pointer-events: none;
-        z-index: 9999;
-        animation: confettiFall 4s ease-out forwards;
-        top: -10px;
-    }
-    @keyframes confettiFall {
-        0% { transform: translateY(0) rotate(0deg) translateX(0); opacity: 1; }
-        25% { transform: translateY(25vh) rotate(180deg) translateX(20px); }
-        50% { transform: translateY(50vh) rotate(360deg) translateX(-20px); }
-        75% { transform: translateY(75vh) rotate(540deg) translateX(10px); opacity: 0.8; }
-        100% { transform: translateY(105vh) rotate(720deg) translateX(0); opacity: 0; }
-    }
-
-    /* Heart shower emojis */
-    .heart-shower {
-        position: fixed;
-        font-size: 28px;
-        pointer-events: none;
-        z-index: 9998;
-        animation: heartShower 3s ease-out forwards;
-        top: -10px;
-    }
-    @keyframes heartShower {
-        0% { transform: translateY(0) scale(0.5); opacity: 0; }
-        20% { opacity: 1; transform: translateY(20vh) scale(1.2); }
-        100% { transform: translateY(105vh) scale(1); opacity: 0; }
-    }
-
-    /* Fade scale for photos */
-    .photo-anim {
-        animation: photoFade 0.5s ease;
-    }
-    @keyframes photoFade {
-        from { opacity: 0; transform: scale(0.9); }
-        to { opacity: 1; transform: scale(1); }
-    }
-
-    /* Roast card fade */
-    .roast-anim {
-        animation: roastFade 0.4s ease;
-    }
-    @keyframes roastFade {
-        from { opacity: 0; transform: translateX(-10px); }
-        to { opacity: 1; transform: translateX(0); }
-    }
-
-    /* Music bars */
-    .music-bar {
-        display: inline-block;
-        width: 10px;
-        background: linear-gradient(to top, #ec4899, #8b5cf6);
-        border-radius: 5px;
-        margin: 0 3px;
-        animation: barBounce 1.2s ease-in-out infinite;
-    }
-    @keyframes barBounce {
-        0%, 100% { height: 20px; }
-        50% { height: 60px; }
-    }
-
-    /* Custom button overrides */
-    .stButton > button {
-        border-radius: 16px !important;
-        border: none !important;
-        font-weight: 600 !important;
-        transition: all 0.2s ease !important;
-    }
-    .stButton > button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(168, 85, 247, 0.3);
-    }
-    .stButton > button:active {
-        transform: translateY(0);
-    }
-
-    /* Keypad buttons */
-    .keypad-btn > button {
-        background: rgba(255,255,255,0.2) !important;
-        color: #e9d5ff !important;
-        font-size: 28px !important;
-        height: 72px !important;
-        border: 1px solid rgba(233, 213, 255, 0.3) !important;
-    }
-    .keypad-btn > button:hover {
-        background: rgba(255,255,255,0.35) !important;
-    }
-
-    /* Pink action buttons */
-    .pink-btn > button {
-        background: linear-gradient(135deg, #ec4899, #a855f7) !important;
-        color: white !important;
-        padding: 14px 28px !important;
-        font-size: 16px !important;
-    }
-
-    /* Secondary buttons */
-    .secondary-btn > button {
-        background: rgba(255,255,255,0.6) !important;
-        color: #7c3aed !important;
-        border: 1px solid rgba(168, 85, 247, 0.2) !important;
-    }
-
-    /* Scrollable message card */
-    .scroll-card {
-        max-height: 60vh;
-        overflow-y: auto;
-        padding-right: 10px;
-    }
-    .scroll-card::-webkit-scrollbar {
-        width: 6px;
-    }
-    .scroll-card::-webkit-scrollbar-thumb {
-        background: rgba(168, 85, 247, 0.3);
-        border-radius: 3px;
-    }
-
-    /* Countdown card */
-    .countdown-card {
-        background: white;
-        border-radius: 16px;
-        padding: 16px 8px;
-        text-align: center;
-        box-shadow: 0 4px 16px rgba(0,0,0,0.05);
-        min-width: 70px;
-    }
-
-    /* Dev button */
-    .dev-btn > button {
-        background: transparent !important;
-        color: rgba(168, 85, 247, 0.3) !important;
-        font-size: 10px !important;
-        border: none !important;
-        padding: 4px !important;
-    }
-
-    /* Nav dot buttons */
-    .nav-dot > button {
-        background: transparent !important;
-        border: none !important;
-        padding: 2px !important;
-        min-height: 0 !important;
-        height: auto !important;
-        font-size: 12px !important;
-        color: #c4b5fd !important;
-        opacity: 0.6;
-    }
-    .nav-dot > button:hover {
-        opacity: 1;
-        transform: scale(1.3);
-        color: #a855f7 !important;
-    }
-    .nav-dot-active > button {
-        color: #ec4899 !important;
-        opacity: 1 !important;
-        transform: scale(1.2);
-    }
+#MainMenu, footer, header, .stDeployButton { visibility: hidden; }
+.block-container { padding: 0 !important; max-width: 100% !important; }
 </style>
 """, unsafe_allow_html=True)
 
-# ─── FLOATING HEARTS BACKGROUND (always visible, CSS-only) ───────────────────
-hearts = ['💗', '🌸', '✨', '💜', '🩷', '🌺', '💖', '💫']
-heart_html = ""
-for i in range(18):
-    left = random.randint(2, 95)
-    delay = random.uniform(0, 12)
-    duration = random.uniform(10, 18)
-    heart = random.choice(hearts)
-    size = random.uniform(16, 28)
-    heart_html += f'<div class="heart-bg" style="left:{left}%; animation-delay:{delay}s; animation-duration:{duration}s; font-size:{size}px;">{heart}</div>'
-
-st.markdown(heart_html, unsafe_allow_html=True)
-
-# ─── CONFETTI EFFECT (triggered by buttons) ───────────────────────────────────
-if st.session_state.show_confetti:
-    colors = ['#ec4899', '#a855f7', '#3b82f6', '#fbbf24', '#f472b6', '#8b5cf6']
-    shapes = ['■', '●', '▲', '★']
-    confetti_html = ""
-    for i in range(60):
-        left = random.randint(0, 100)
-        delay = random.uniform(0, 1.5)
-        color = random.choice(colors)
-        shape = random.choice(shapes)
-        rot = random.randint(0, 360)
-        confetti_html += f'<div class="confetti-piece" style="left:{left}%; animation-delay:{delay}s; background:{color}; transform:rotate({rot}deg);">{shape}</div>'
-    st.markdown(confetti_html, unsafe_allow_html=True)
-    st.session_state.show_confetti = False
-
-# ─── HEART SHOWER EFFECT ──────────────────────────────────────────────────────
-if st.session_state.show_hearts:
-    shower_emojis = ['💗', '💖', '💜', '🩷', '💕', '💓', '💘', '💝']
-    shower_html = ""
-    for i in range(40):
-        left = random.randint(5, 95)
-        delay = random.uniform(0, 2)
-        emoji = random.choice(shower_emojis)
-        shower_html += f'<div class="heart-shower" style="left:{left}%; animation-delay:{delay}s;">{emoji}</div>'
-    st.markdown(shower_html, unsafe_allow_html=True)
-    st.session_state.show_hearts = False
-
-# ─── MAIN LAYOUT: Content + Right Nav ─────────────────────────────────────────
-content_col, nav_col = st.columns([5, 1])
-
-# ─── RIGHT SIDE NAV DOTS (native buttons) ─────────────────────────────────────
-with nav_col:
-    st.markdown("<div style='height: 20vh;'></div>", unsafe_allow_html=True)
-    for i in range(11):
-        is_active = i == st.session_state.page
-        dot_class = "nav-dot-active" if is_active else "nav-dot"
-        dot_label = "●" if is_active else "○"
-        st.markdown(f"<div class='{dot_class}'>", unsafe_allow_html=True)
-        if st.button(dot_label, key=f"navdot_{i}"):
-            st.session_state.page = i
-            st.session_state.show_confetti = False
-            st.session_state.show_hearts = False
-            st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
-
-# ─── MAIN CONTENT AREA ────────────────────────────────────────────────────────
-with content_col:
-
-    # ═══════════════════════════════════════════════════════════════════════════
-    # PAGE 0 — TAP TO OPEN
-    # ═══════════════════════════════════════════════════════════════════════════
-    if st.session_state.page == 0:
-        st.markdown("""
-        <style>
-            .stApp { background: #2e1065 !important; }
-        </style>
-        """, unsafe_allow_html=True)
-
-        st.markdown("<div style='height: 22vh;'></div>", unsafe_allow_html=True)
-
-        c1, c2, c3 = st.columns([1, 3, 1])
-        with c2:
-            st.markdown("""
-            <div style="text-align: center; animation: pageEnter 0.8s ease;">
-                <div style="font-size: 5rem; margin-bottom: 20px; animation: pulseGlow 2s infinite;">🎀</div>
-                <h2 style="color: #e9d5ff; font-weight: 400; margin-bottom: 8px;">tap anywhere to open</h2>
-                <p style="color: #a855f7; font-size: 0.9rem;">something special is waiting</p>
-            </div>
-            <style>
-                @keyframes pulseGlow {
-                    0%, 100% { transform: scale(1); opacity: 1; filter: drop-shadow(0 0 10px rgba(168,85,247,0.5)); }
-                    50% { transform: scale(1.15); opacity: 0.85; filter: drop-shadow(0 0 25px rgba(168,85,247,0.8)); }
-                }
-            </style>
-            """, unsafe_allow_html=True)
-
-            # Large glowing tap button
-            st.markdown("""
-            <style>
-            .tap-btn > button {
-                background: transparent !important;
-                border: 2px solid rgba(168, 85, 247, 0.4) !important;
-                color: #e9d5ff !important;
-                font-size: 2.5rem !important;
-                height: 160px !important;
-                border-radius: 50% !important;
-                width: 160px !important;
-                margin: 30px auto !important;
-                display: block !important;
-                box-shadow: 0 0 40px rgba(168, 85, 247, 0.3) !important;
-                transition: all 0.3s ease !important;
-            }
-            .tap-btn > button:hover {
-                box-shadow: 0 0 60px rgba(168, 85, 247, 0.6) !important;
-                transform: scale(1.05) !important;
-                background: rgba(168, 85, 247, 0.1) !important;
-            }
-            </style>
-            """, unsafe_allow_html=True)
-
-            if st.button("✨", key="tap_open"):
-                st.session_state.page = 1
-                st.rerun()
-
-    # ═══════════════════════════════════════════════════════════════════════════
-    # PAGE 1 — KEYPAD LOCK
-    # ═══════════════════════════════════════════════════════════════════════════
-    elif st.session_state.page == 1:
-        st.markdown("""
-        <style>
-            .stApp { background: #2e1065 !important; }
-        </style>
-        """, unsafe_allow_html=True)
-
-        st.markdown("<div style='height: 6vh;'></div>", unsafe_allow_html=True)
-
-        c1, c2, c3 = st.columns([1, 3, 1])
-        with c2:
-            st.markdown("""
-            <div style="text-align: center; margin-bottom: 30px;">
-                <h1 style="color: #e9d5ff; font-weight: 500; margin-bottom: 8px;">hey sayumi 🎀</h1>
-                <p style="color: #a855f7; text-transform: lowercase; font-size: 0.95rem; letter-spacing: 1px;">enter the secret code</p>
-            </div>
-            """, unsafe_allow_html=True)
-
-            # Dots display
-            dots = ""
-            shake_class = "shake" if st.session_state.code_error else ""
-            for i in range(8):
-                if i < len(st.session_state.code):
-                    dots += "<span style='color: #ec4899; font-size: 36px; margin: 0 6px;'>●</span>"
-                else:
-                    dots += "<span style='color: rgba(233, 213, 255, 0.3); font-size: 36px; margin: 0 6px;'>○</span>"
-
-            st.markdown(f"""
-            <div style="text-align: center; margin-bottom: 40px;" class="{shake_class}">
-                {dots}
-            </div>
-            """, unsafe_allow_html=True)
-
-            # Reset shake flag
-            if st.session_state.code_error:
-                st.session_state.code_error = False
-
-            # KEYPAD — native Streamlit buttons, NO iframes
-            keys = [
-                ['1', '2', '3'],
-                ['4', '5', '6'],
-                ['7', '8', '9'],
-                ['', '0', '⌫']
-            ]
-
-            for row in keys:
-                cols = st.columns(3)
-                for i, key in enumerate(row):
-                    with cols[i]:
-                        if key == '':
-                            st.empty()
-                        else:
-                            btn_label = "←" if key == '⌫' else key
-                            st.markdown("<div class='keypad-btn'>", unsafe_allow_html=True)
-                            if st.button(btn_label, key=f"kp_{key}_{row[0]}", use_container_width=True):
-                                if key == '⌫':
-                                    st.session_state.code = st.session_state.code[:-1]
-                                else:
-                                    if len(st.session_state.code) < 8:
-                                        st.session_state.code += key
-
-                                # Check code when 8 digits entered
-                                if len(st.session_state.code) == 8:
-                                    if st.session_state.code == "06082012":
-                                        trigger_confetti()
-                                        st.session_state.code = ""
-                                        st.session_state.page = 2
-                                    else:
-                                        st.session_state.code = ""
-                                        st.session_state.code_error = True
-                                st.rerun()
-                            st.markdown("</div>", unsafe_allow_html=True)
-
-            st.markdown("""
-            <div style="text-align: center; margin-top: 30px;">
-                <p style="color: rgba(168, 85, 247, 0.6); font-size: 0.8rem;">hint: her bday 😉</p>
-            </div>
-            """, unsafe_allow_html=True)
-
-    # ═══════════════════════════════════════════════════════════════════════════
-    # PAGE 2 — HERO
-    # ═══════════════════════════════════════════════════════════════════════════
-    elif st.session_state.page == 2:
-        st.markdown("<div style='height: 10vh;'></div>", unsafe_allow_html=True)
-
-        c1, c2, c3 = st.columns([1, 4, 1])
-        with c2:
-            st.markdown("""
-            <div class="page-container" style="text-align: center;">
-                <p style="color: #a855f7; font-size: 0.9rem; letter-spacing: 2px; text-transform: lowercase; margin-bottom: 16px;">
-                    a little something for you
-                </p>
-                <h1 class="gradient-text" style="font-size: 4.5rem; margin-bottom: 12px; line-height: 1.1;">
-                    Sayumi
-                </h1>
-                <p style="color: #7c3aed; font-size: 1.1rem; margin-bottom: 30px;">
-                    turning 14 · august 6th ✨
-                </p>
-                <div style="font-size: 2.2rem; letter-spacing: 8px; margin-bottom: 40px; animation: pageEnter 1s ease 0.3s both;">
-                    🎂💗🎉🫶🥹
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-
-            st.markdown("<div class='pink-btn'>", unsafe_allow_html=True)
-            if st.button("open 💗", use_container_width=True):
-                st.session_state.page = 3
-                st.rerun()
-            st.markdown("</div>", unsafe_allow_html=True)
-
-    # ═══════════════════════════════════════════════════════════════════════════
-    # PAGE 3 — COUNTDOWN
-    # ═══════════════════════════════════════════════════════════════════════════
-    elif st.session_state.page == 3:
-        st.markdown("<div style='height: 5vh;'></div>", unsafe_allow_html=True)
-
-        c1, c2, c3 = st.columns([1, 4, 1])
-        with c2:
-            target = st.session_state.countdown_target
-            now = datetime.now()
-            is_birthday = now.date() == target.date()
-
-            if is_birthday:
-                st.markdown("""
-                <div class="page-container" style="text-align: center; margin-bottom: 30px;">
-                    <div style="background: linear-gradient(135deg, #ec4899, #a855f7); 
-                                color: white; padding: 24px; border-radius: 20px; 
-                                font-size: 1.8rem; font-weight: 700; box-shadow: 0 8px 32px rgba(236, 72, 153, 0.3);">
-                        IT'S YOUR DAY!! 🎂
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-                trigger_confetti()
-            else:
-                # Live countdown using JS in iframe (non-interactive display only)
-                target_str = target.strftime("%Y-%m-%dT%H:%M:%S")
-                st.markdown("<div class='page-container'>", unsafe_allow_html=True)
-
-                countdown_iframe = f"""
-                <div style="display: flex; gap: 12px; justify-content: center; margin-bottom: 30px;">
-                    <div class="countdown-card">
-                        <div id="cd-days" style="font-size: 2.2rem; font-weight: 700; color: #7c3aed;">00</div>
-                        <div style="font-size: 0.7rem; color: #a855f7; text-transform: uppercase; letter-spacing: 1px;">Days</div>
-                    </div>
-                    <div class="countdown-card">
-                        <div id="cd-hours" style="font-size: 2.2rem; font-weight: 700; color: #7c3aed;">00</div>
-                        <div style="font-size: 0.7rem; color: #a855f7; text-transform: uppercase; letter-spacing: 1px;">Hours</div>
-                    </div>
-                    <div class="countdown-card">
-                        <div id="cd-minutes" style="font-size: 2.2rem; font-weight: 700; color: #7c3aed;">00</div>
-                        <div style="font-size: 0.7rem; color: #a855f7; text-transform: uppercase; letter-spacing: 1px;">Minutes</div>
-                    </div>
-                    <div class="countdown-card">
-                        <div id="cd-seconds" style="font-size: 2.2rem; font-weight: 700; color: #7c3aed;">00</div>
-                        <div style="font-size: 0.7rem; color: #a855f7; text-transform: uppercase; letter-spacing: 1px;">Seconds</div>
-                    </div>
-                </div>
-                <script>
-                    (function() {{
-                        const target = new Date("{target_str}").getTime();
-                        function update() {{
-                            const now = new Date().getTime();
-                            const diff = target - now;
-                            if (diff <= 0) {{
-                                document.getElementById("cd-days").innerText = "00";
-                                document.getElementById("cd-hours").innerText = "00";
-                                document.getElementById("cd-minutes").innerText = "00";
-                                document.getElementById("cd-seconds").innerText = "00";
-                                return;
-                            }}
-                            const d = Math.floor(diff / (1000*60*60*24));
-                            const h = Math.floor((diff % (1000*60*60*24)) / (1000*60*60));
-                            const m = Math.floor((diff % (1000*60*60)) / (1000*60));
-                            const s = Math.floor((diff % (1000*60)) / 1000);
-                            document.getElementById("cd-days").innerText = String(d).padStart(2,'0');
-                            document.getElementById("cd-hours").innerText = String(h).padStart(2,'0');
-                            document.getElementById("cd-minutes").innerText = String(m).padStart(2,'0');
-                            document.getElementById("cd-seconds").innerText = String(s).padStart(2,'0');
-                        }}
-                        update();
-                        setInterval(update, 1000);
-                    }})();
-                </script>
-                """
-                st.components.v1.html(countdown_iframe, height=140)
-                st.markdown("</div>", unsafe_allow_html=True)
-
-            # Buttons
-            btn_cols = st.columns(2)
-            with btn_cols[0]:
-                st.markdown("<div class='pink-btn'>", unsafe_allow_html=True)
-                if st.button("🎉 confetti", use_container_width=True):
-                    trigger_confetti()
-                    st.rerun()
-                st.markdown("</div>", unsafe_allow_html=True)
-            with btn_cols[1]:
-                st.markdown("<div class='secondary-btn'>", unsafe_allow_html=True)
-                if st.button("💗 heart shower", use_container_width=True):
-                    trigger_hearts()
-                    st.rerun()
-                st.markdown("</div>", unsafe_allow_html=True)
-
-            # Dev button
-            st.markdown("<div style='text-align: center; margin-top: 20px;'>", unsafe_allow_html=True)
-            st.markdown("<div class='dev-btn'>", unsafe_allow_html=True)
-            if st.button("dev: reset to 10s", key="dev_countdown"):
-                st.session_state.countdown_target = datetime.now() + timedelta(seconds=10)
-                st.session_state.dev_mode = True
-                st.rerun()
-            st.markdown("</div>", unsafe_allow_html=True)
-            st.markdown("</div>", unsafe_allow_html=True)
-
-    # ═══════════════════════════════════════════════════════════════════════════
-    # PAGE 4 — ROASTS
-    # ═══════════════════════════════════════════════════════════════════════════
-    elif st.session_state.page == 4:
-        st.markdown("<div style='height: 6vh;'></div>", unsafe_allow_html=True)
-
-        c1, c2, c3 = st.columns([1, 4, 1])
-        with c2:
-            roasts = [
-                "😭 threatens to slap me literally every other day and has never said sorry once",
-                "📝 wrote 4 whole pages for no reason at all and thinks thats totally normal",
-                "💀 crashes out every single time geenuka gets mentioned. every. single. time.",
-                "🖤 wears black like its her whole thing and honestly? fair. it works.",
-                "🧠 was the quietest nerd in cambridge 6 and now wont stop talking or threatening me"
-            ]
-
-            idx = st.session_state.roast_idx
-
-            st.markdown("""
-            <div class="page-container" style="text-align: center; margin-bottom: 24px;">
-                <p style="color: #a855f7; font-size: 0.9rem; text-transform: lowercase; letter-spacing: 1px;">
-                    reasons ur actually the worst 😭
-                </p>
-            </div>
-            """, unsafe_allow_html=True)
-
-            st.markdown(f"""
-            <div class="card roast-anim" style="text-align: center; margin-bottom: 30px; min-height: 120px; display: flex; align-items: center; justify-content: center;">
-                <p style="font-size: 1.15rem; color: #4c1d95; line-height: 1.5; margin: 0;">
-                    {roasts[idx]}
-                </p>
-            </div>
-            """, unsafe_allow_html=True)
-
-            st.markdown("<div class='pink-btn'>", unsafe_allow_html=True)
-            if st.button("next roast 😂", use_container_width=True):
-                st.session_state.roast_idx = (idx + 1) % len(roasts)
-                st.rerun()
-            st.markdown("</div>", unsafe_allow_html=True)
-
-            # Dots indicator
-            dots = ""
-            for i in range(len(roasts)):
-                dots += "<span style='color: #ec4899; font-size: 20px; margin: 0 4px;'>●</span>" if i == idx else "<span style='color: #ddd6fe; font-size: 20px; margin: 0 4px;'>●</span>"
-            st.markdown(f"<div style='text-align: center; margin-top: 20px;'>{dots}</div>", unsafe_allow_html=True)
-
-    # ═══════════════════════════════════════════════════════════════════════════
-    # PAGE 5 — PHOTO SLIDESHOW
-    # ═══════════════════════════════════════════════════════════════════════════
-    elif st.session_state.page == 5:
-        st.markdown("<div style='height: 5vh;'></div>", unsafe_allow_html=True)
-
-        c1, c2, c3 = st.columns([1, 4, 1])
-        with c2:
-            idx = st.session_state.photo_idx
-            total_photos = 6  # 4 real + 2 placeholders
-
-            st.markdown("""
-            <div class="page-container" style="text-align: center; margin-bottom: 16px;">
-                <p style="color: #a8557f; font-size: 0.9rem; text-transform: lowercase; letter-spacing: 1px;">
-                    ur camera roll era 📸
-                </p>
-            </div>
-            """, unsafe_allow_html=True)
-
-            # Photo display
-            if idx < 4:
-                b64 = get_photo_base64(idx + 1)
-                if b64:
-                    st.markdown(f"""
-                    <div class="photo-anim" style="text-align: center; margin-bottom: 16px;">
-                        <img src="data:image/jpeg;base64,{b64}" 
-                             style="width: 100%; max-width: 400px; aspect-ratio: 1; object-fit: cover; 
-                                    border-radius: 20px; box-shadow: 0 12px 40px rgba(168, 85, 247, 0.2);"
-                             alt="Sayumi photo {idx+1}">
-                    </div>
-                    """, unsafe_allow_html=True)
-                else:
-                    emojis = ["📸", "🤳", "📷", "🎞️"]
-                    st.markdown(f"""
-                    <div class="photo-anim card" style="text-align: center; margin-bottom: 16px; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; max-width: 400px; margin-left: auto; margin-right: auto;">
-                        <div style="font-size: 4rem;">{emojis[idx]}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-            else:
-                placeholders = ["🎀", "✨"]
-                st.markdown(f"""
-                <div class="photo-anim card" style="text-align: center; margin-bottom: 16px; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; max-width: 400px; margin-left: auto; margin-right: auto;">
-                    <div style="font-size: 4rem;">{placeholders[idx-4]}</div>
-                </div>
-                """, unsafe_allow_html=True)
-
-            st.markdown("<p style='text-align: center; color: #a855f7; font-size: 0.85rem; margin-bottom: 20px;'>tap to go to next pic 📷</p>", unsafe_allow_html=True)
-
-            st.markdown("<div class='pink-btn'>", unsafe_allow_html=True)
-            if st.button("next pic 📷", use_container_width=True):
-                st.session_state.photo_idx = (idx + 1) % total_photos
-                st.rerun()
-            st.markdown("</div>", unsafe_allow_html=True)
-
-            # Dots
-            dots = ""
-            for i in range(total_photos):
-                dots += "<span style='color: #ec4899; font-size: 18px; margin: 0 4px;'>●</span>" if i == idx else "<span style='color: #ddd6fe; font-size: 18px; margin: 0 4px;'>●</span>"
-            st.markdown(f"<div style='text-align: center; margin-top: 20px;'>{dots}</div>", unsafe_allow_html=True)
-
-    # ═══════════════════════════════════════════════════════════════════════════
-    # PAGE 6 — YES/NO GAME
-    # ═══════════════════════════════════════════════════════════════════════════
-    elif st.session_state.page == 6:
-        st.markdown("<div style='height: 5vh;'></div>", unsafe_allow_html=True)
-
-        c1, c2, c3 = st.columns([1, 4, 1])
-        with c2:
-            questions = [
-                ("ur old now aren't u? 😂", "SHE ADMITTED IT 😂💗 welcome to old age"),
-                ("should i get slapped rn? 🫳", "she said yes 💀 i accept my fate"),
-                ("ur da best bsf right? 🥺", "correct!! 💗 that was the only right answer"),
-                ("will u be more active this year? 📷", "she promised!! 💗 im holding u to that"),
-                ("will u enjoy ur bday? 🎂", "good!! 🎂💗 as it should be!")
-            ]
-
-            q_idx = st.session_state.q_idx
-
-            if q_idx < len(questions):
-                q_text, yes_resp = questions[q_idx]
-
-                st.markdown(f"""
-                <div class="page-container card" style="text-align: center; margin-bottom: 30px;">
-                    <p style="font-size: 1.2rem; color: #4c1d95; margin-bottom: 24px;">{q_text}</p>
-                </div>
-                """, unsafe_allow_html=True)
-
-                # YES/NO buttons in a bordered box
-                st.markdown("""
-                <div style="border: 2px solid rgba(168, 85, 247, 0.2); border-radius: 20px; padding: 24px; margin-bottom: 20px;">
-                """, unsafe_allow_html=True)
-
-                escapes = st.session_state.no_escapes
-                no_texts = ["NO", "no... 🫣", "noooo 😭", "please no", "stop", "💀"]
-                no_text = no_texts[min(escapes, len(no_texts)-1)]
-                no_scale = max(0.4, 1.0 - escapes * 0.12)
-
-                yes_col, no_col = st.columns(2)
-
-                with yes_col:
-                    st.markdown("<div class='pink-btn'>", unsafe_allow_html=True)
-                    if st.button("YES 💗", key=f"yes_{q_idx}", use_container_width=True):
-                        st.session_state.yes_clicked = True
-                        st.session_state.yes_msg = yes_resp
-                        trigger_hearts()
-                        st.rerun()
-                    st.markdown("</div>", unsafe_allow_html=True)
-
-                with no_col:
-                    if escapes < 6:
-                        st.markdown(f"""
-                        <style>
-                        .no-btn-{escapes} > button {{
-                            background: rgba(255,255,255,0.5) !important;
-                            color: #7c3aed !important;
-                            transform: scale({no_scale}) !important;
-                            transition: all 0.3s ease !important;
-                        }}
-                        </style>
-                        """, unsafe_allow_html=True)
-                        st.markdown(f"<div class='no-btn-{escapes} secondary-btn'>", unsafe_allow_html=True)
-                        if st.button(no_text, key=f"no_{q_idx}_{escapes}", use_container_width=True):
-                            st.session_state.no_escapes = escapes + 1
-                            st.rerun()
-                        st.markdown("</div>", unsafe_allow_html=True)
-                    else:
-                        st.markdown("<div style='text-align: center; color: #a855f7; font-size: 0.8rem; padding-top: 10px;'>💀</div>", unsafe_allow_html=True)
-
-                st.markdown("</div>", unsafe_allow_html=True)
-
-                # Show YES response and auto-advance
-                if st.session_state.yes_clicked:
-                    st.markdown(f"""
-                    <div style="text-align: center; margin-top: 20px; animation: pageEnter 0.5s ease;">
-                        <p style="color: #ec4899; font-size: 1.1rem; font-weight: 600;">{st.session_state.yes_msg}</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-
-                    time.sleep(2.5)
-                    st.session_state.yes_clicked = False
-                    st.session_state.yes_msg = ""
-                    st.session_state.no_escapes = 0
-                    st.session_state.q_idx = q_idx + 1
-                    st.rerun()
-            else:
-                # All questions done
-                st.markdown("""
-                <div class="page-container card" style="text-align: center;">
-                    <p style="font-size: 1.3rem; color: #4c1d95;">u survived the questions 😂💗</p>
-                </div>
-                """, unsafe_allow_html=True)
-                st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
-                st.markdown("<div class='pink-btn'>", unsafe_allow_html=True)
-                if st.button("continue 💗", use_container_width=True):
-                    st.session_state.q_idx = 0
-                    st.session_state.no_escapes = 0
-                    st.session_state.page = 7
-                    st.rerun()
-                st.markdown("</div>", unsafe_allow_html=True)
-
-    # ═══════════════════════════════════════════════════════════════════════════
-    # PAGE 7 — BIRTHDAY MESSAGE
-    # ═══════════════════════════════════════════════════════════════════════════
-    elif st.session_state.page == 7:
-        st.markdown("<div style='height: 3vh;'></div>", unsafe_allow_html=True)
-
-        c1, c2, c3 = st.columns([1, 4, 1])
-        with c2:
-            st.markdown("""
-            <div class="page-container card scroll-card" style="margin-bottom: 20px;">
-                <div style="font-size: 3rem; color: #ddd6fe; line-height: 0.5; margin-bottom: 8px;">"</div>
-                <div style="color: #7c3aed; line-height: 1.7; font-size: 1.05rem;">
-                    <p style="margin-bottom: 16px;">
-                        happy birthday sayumi 💗🎂 ur officially old now and i hope ur having the best time lmao. 
-                        i still remember cambridge 6, the quiet nerd in the corner who wouldn't say a word to anyone, 
-                        BUT NOT NOW OKK?? now she threatens to slap me every day and somehow thats become one of 
-                        my fav things about her 😭
-                    </p>
-                    <p style="margin-bottom: 16px;">
-                        ik ive been a bit quiet lately and im sorry for that, but i need u to know that never changed 
-                        how much u mean to me. u wrote me 4 whole pages once for jz no reason and i still think about 
-                        that, cuz thats jz who u are. u give so much without even thinking about it and i dont say this 
-                        enough but im so glad to have u in my life. like actually glad, not jz saying it. uuve been there 
-                        through so much and i dont take that for granted 🥹
-                    </p>
-                    <p style="margin-bottom: 16px;">
-                        the kind of bsf that checks on u, roasts u, threatens to hit u, and somehow still makes u feel 
-                        like the luckiest person in the room 😂🫶
-                    </p>
-                    <p style="margin-bottom: 16px;">
-                        have the best birthday okay. wear black obviously. eat way too much cake. and please jz go talk 
-                        to geenuka already ur going to give yourself a heart attack every time i say his name 😭💙
-                    </p>
-                    <p style="margin-bottom: 20px;">
-                        cheers to u being a bit older, more unbothered and still living in the same era as me 🎂🫶🥹
-                    </p>
-                    <p style="color: #a855f7; font-style: italic; text-align: right;">
-                        — ur bsf, always 💗
-                    </p>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-
-            st.markdown("<div class='pink-btn'>", unsafe_allow_html=True)
-            if st.button("next page 💗", use_container_width=True):
-                st.session_state.page = 8
-                st.rerun()
-            st.markdown("</div>", unsafe_allow_html=True)
-
-    # ═══════════════════════════════════════════════════════════════════════════
-    # PAGE 8 — FUN FACTS
-    # ═══════════════════════════════════════════════════════════════════════════
-    elif st.session_state.page == 8:
-        st.markdown("<div style='height: 5vh;'></div>", unsafe_allow_html=True)
-
-        c1, c2, c3 = st.columns([1, 4, 1])
-        with c2:
-            st.markdown("""
-            <div class="page-container" style="text-align: center; margin-bottom: 24px;">
-                <p style="color: #a855f7; font-size: 0.9rem; text-transform: lowercase; letter-spacing: 1px;">
-                    some things about u 🥹
-                </p>
-            </div>
-            """, unsafe_allow_html=True)
-
-            facts = [
-                ("🎆", "u came a long way", "from the quiet girl in cambridge 6 to the person who threatens to slap me daily. genuinely proud of this era."),
-                ("📝", "u wrote me 4 pages. for no reason.", "that says everything about who u are. u care a lot even when u dont have to."),
-                ("🖤", "the black fit era will never end", "and honestly? it shouldnt. it works.")
-            ]
-
-            for emoji, title, desc in facts:
-                st.markdown(f"""
-                <div class="card" style="margin-bottom: 16px; animation: pageEnter 0.5s ease;">
-                    <div style="font-size: 1.8rem; margin-bottom: 8px;">{emoji}</div>
-                    <h3 style="color: #4c1d95; margin-bottom: 6px; font-size: 1.1rem;">{title}</h3>
-                    <p style="color: #7c3aed; font-size: 0.95rem; line-height: 1.5; margin: 0;">{desc}</p>
-                </div>
-                """, unsafe_allow_html=True)
-
-            st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
-            st.markdown("<div class='pink-btn'>", unsafe_allow_html=True)
-            if st.button("next page 🎙️", use_container_width=True):
-                st.session_state.page = 9
-                st.rerun()
-            st.markdown("</div>", unsafe_allow_html=True)
-
-    # ═══════════════════════════════════════════════════════════════════════════
-    # PAGE 9 — HER SINGING
-    # ═══════════════════════════════════════════════════════════════════════════
-    elif st.session_state.page == 9:
-        st.markdown("<div style='height: 5vh;'></div>", unsafe_allow_html=True)
-
-        c1, c2, c3 = st.columns([1, 4, 1])
-        with c2:
-            st.markdown("""
-            <div class="page-container" style="text-align: center; margin-bottom: 20px;">
-                <p style="color: #a855f7; font-size: 0.9rem; text-transform: lowercase; letter-spacing: 1px;">
-                    wait... is that her singing? 🎙️
-                </p>
-            </div>
-            """, unsafe_allow_html=True)
-
-            # Music player card
-            st.markdown("""
-            <div class="card" style="text-align: center; margin-bottom: 24px;">
-                <div style="font-size: 2.5rem; margin-bottom: 8px;">🎵</div>
-                <h3 style="color: #4c1d95; margin-bottom: 4px;">freak of the fall</h3>
-                <p style="color: #a855f7; font-size: 0.9rem; margin-bottom: 20px;">featuring: sayumi live 🎙️</p>
-
-                <!-- Animated music bars -->
-                <div style="display: flex; justify-content: center; align-items: flex-end; height: 70px; gap: 4px; margin-bottom: 20px;">
-                    <div class="music-bar" style="animation-delay: 0s; height: 30px;"></div>
-                    <div class="music-bar" style="animation-delay: 0.15s; height: 50px;"></div>
-                    <div class="music-bar" style="animation-delay: 0.3s; height: 40px;"></div>
-                    <div class="music-bar" style="animation-delay: 0.45s; height: 60px;"></div>
-                    <div class="music-bar" style="animation-delay: 0.6s; height: 35px;"></div>
-                    <div class="music-bar" style="animation-delay: 0.75s; height: 55px;"></div>
-                    <div class="music-bar" style="animation-delay: 0.9s; height: 45px;"></div>
-                    <div class="music-bar" style="animation-delay: 1.05s; height: 50px;"></div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-
-            # Native audio player
-            audio_path = os.path.join(os.path.dirname(__file__), "sayumi_singing.ogg")
-            if os.path.exists(audio_path):
-                st.audio(audio_path, format="audio/ogg")
-            else:
-                st.markdown("""
-                <div style="text-align: center; padding: 20px; color: #a855f7; background: rgba(255,255,255,0.5); border-radius: 12px;">
-                    🎵 Audio file not found — place "sayumi_singing.ogg" in the same folder
-                </div>
-                """, unsafe_allow_html=True)
-
-            st.markdown("<p style='text-align: center; color: #a855f7; font-size: 0.85rem; margin-top: 16px;'>she actually sang this 😭💗</p>", unsafe_allow_html=True)
-
-            st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
-            st.markdown("<div class='pink-btn'>", unsafe_allow_html=True)
-            if st.button("next page 🎂", use_container_width=True):
-                st.session_state.page = 10
-                st.rerun()
-            st.markdown("</div>", unsafe_allow_html=True)
-
-    # ═══════════════════════════════════════════════════════════════════════════
-    # PAGE 10 — ENDING
-    # ═══════════════════════════════════════════════════════════════════════════
-    elif st.session_state.page == 10:
-        st.markdown("<div style='height: 8vh;'></div>", unsafe_allow_html=True)
-
-        c1, c2, c3 = st.columns([1, 4, 1])
-        with c2:
-            st.markdown("""
-            <div class="page-container" style="text-align: center;">
-                <h1 class="gradient-text" style="font-size: 3.5rem; margin-bottom: 20px; line-height: 1.2;">
-                    Happy Birthday 🎂
-                </h1>
-                <p style="color: #7c3aed; font-size: 1.05rem; line-height: 1.7; margin-bottom: 40px;">
-                    this only happens once a year. hope u make it count.<br>
-                    wear black. eat cake. be unbothered.<br>
-                    thats the whole plan. 💗
-                </p>
-            </div>
-            """, unsafe_allow_html=True)
-
-            btn_cols = st.columns(2)
-            with btn_cols[0]:
-                st.markdown("<div class='pink-btn'>", unsafe_allow_html=True)
-                if st.button("one last confetti 🎉", use_container_width=True):
-                    trigger_confetti()
-                    st.rerun()
-                st.markdown("</div>", unsafe_allow_html=True)
-            with btn_cols[1]:
-                st.markdown("<div class='secondary-btn'>", unsafe_allow_html=True)
-                if st.button("one last heart shower 💗", use_container_width=True):
-                    trigger_hearts()
-                    st.rerun()
-                st.markdown("</div>", unsafe_allow_html=True)
-
-            st.markdown("""
-            <div style="text-align: center; margin-top: 50px; padding-bottom: 40px;">
-                <p style="color: #a855f7; font-size: 0.85rem; opacity: 0.7;">
-                    made with 💗 · for sayumi · august 6th 2026
-                </p>
-            </div>
-            """, unsafe_allow_html=True)
+def img_to_b64(path):
+    try:
+        with open(path, "rb") as f:
+            return base64.b64encode(f.read()).decode()
+    except:
+        return None
+
+photos = []
+for i in range(1, 5):
+    for ext in ['jpg','jpeg','png','webp']:
+        b64 = img_to_b64(f"photo{i}.{ext}")
+        if b64:
+            photos.append(f"data:image/{ext};base64,{b64}")
+            break
+    else:
+        photos.append(None)
+
+# build JS array of photo srcs
+photo_srcs = []
+placeholders_emoji = ["📸","🌸","📸","🌺","🌷","💗"]
+for i, src in enumerate(photos):
+    if src:
+        photo_srcs.append(f'"{src}"')
+    else:
+        photo_srcs.append(f'"__placeholder_{placeholders_emoji[i]}__"')
+photo_srcs.append(f'"__placeholder_{placeholders_emoji[4]}__"')
+photo_srcs.append(f'"__placeholder_{placeholders_emoji[5]}__"')
+photo_srcs_js = "[" + ",".join(photo_srcs) + "]"
+
+# load audio
+audio_b64 = img_to_b64("sayumi_singing.ogg")
+audio_src = f"data:audio/ogg;base64,{audio_b64}" if audio_b64 else ""
+
+html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*{{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}}
+html,body{{touch-action:manipulation;}}
+body{{font-family:'DM Sans',sans-serif;overflow:hidden;width:100vw;height:100vh;background:#fff0f5;}}
+button,.key,.next-btn,.btn,.game-yes-btn,.btn-no,.nav-dot,.photo-stage,.play-btn,#progress-wrap,#tap-overlay{{touch-action:manipulation;}}
+#confetti-canvas{{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9999;}}
+.hearts-bg{{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:0;overflow:hidden;}}
+.heart-float{{position:absolute;animation:floatUp linear infinite;opacity:0;}}
+@keyframes floatUp{{0%{{transform:translateY(100vh) rotate(0deg);opacity:0.7;}}100%{{transform:translateY(-10vh) rotate(360deg);opacity:0;}}}}
+
+/* PAGE SYSTEM */
+.page{{
+  position:fixed;top:0;left:0;width:100%;height:100%;
+  display:flex;align-items:center;justify-content:center;
+  flex-direction:column;
+  transition:opacity 0.55s ease,transform 0.55s ease;
+  opacity:0;pointer-events:none;transform:translateY(30px);
+  z-index:100;padding:1.2rem 1.2rem 1.2rem;
+  background:linear-gradient(135deg,#fff0f5 0%,#fef9ff 40%,#f0f4ff 100%);
+  overflow-y:auto;
+  gap:0.8rem;
+}}
+.page.active{{opacity:1;pointer-events:all;transform:translateY(0);}}
+.page.exit-up{{opacity:0;transform:translateY(-40px);}}
+.page.exit-down{{opacity:0;transform:translateY(40px);}}
+#page-lock{{background:linear-gradient(135deg,#1a0f2e 0%,#2d1b4e 50%,#1a1035 100%);}}
+
+/* scrollable page variant */
+.page.scrollable{{
+  align-items:center;
+  justify-content:flex-start;
+  padding-top:2rem;
+  padding-bottom:2rem;
+}}
+
+/* NAV DOTS */
+.nav-dots{{position:fixed;right:14px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:8px;z-index:200;}}
+.nav-dot{{width:8px;height:8px;border-radius:50%;background:rgba(232,121,160,0.3);cursor:pointer;transition:background 0.3s ease,transform 0.3s ease;border:none;outline:none;}}
+.nav-dot.active{{background:#e879a0;transform:scale(1.4);}}
+
+/* NEXT BTN */
+.next-btn{{background:linear-gradient(135deg,#e879a0,#a78bfa);color:white;border:none;border-radius:50px;padding:0.65rem 1.8rem;font-size:0.82rem;font-family:'DM Sans',sans-serif;font-weight:500;cursor:pointer;transition:transform 0.2s ease,box-shadow 0.2s ease;box-shadow:0 4px 20px rgba(232,121,160,0.3);flex-shrink:0;}}
+.next-btn:hover{{transform:translateY(-3px) scale(1.04);box-shadow:0 8px 30px rgba(232,121,160,0.4);}}
+.next-btn:active{{transform:scale(0.96);}}
+
+/* TAP TO START OVERLAY */
+#tap-overlay{{
+  position:fixed;top:0;left:0;width:100%;height:100%;
+  z-index:9000;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  background:linear-gradient(135deg,#1a0f2e 0%,#2d1b4e 50%,#1a1035 100%);
+  gap:1rem;
+}}
+#tap-overlay.gone{{display:none;}}
+.tap-emoji{{font-size:3rem;animation:float 2s ease-in-out infinite;}}
+.tap-text{{font-family:'Playfair Display',serif;font-size:1.4rem;color:#f0abca;text-align:center;}}
+.tap-sub{{font-size:0.75rem;color:#9d8fc0;letter-spacing:2px;text-transform:uppercase;text-align:center;}}
+.tap-pulse{{
+  width:60px;height:60px;border-radius:50%;
+  border:2px solid #a78bfa;
+  animation:tapPulse 1.5s ease-in-out infinite;
+  display:flex;align-items:center;justify-content:center;
+  font-size:1.5rem;
+}}
+@keyframes tapPulse{{
+  0%,100%{{transform:scale(1);box-shadow:0 0 0 0 rgba(167,139,250,0.4);}}
+  50%{{transform:scale(1.08);box-shadow:0 0 0 12px rgba(167,139,250,0);}}
+}}
+.lock-title{{font-family:'Playfair Display',serif;font-size:1.6rem;color:#f0abca;margin-bottom:0.3rem;text-align:center;}}
+.lock-sub{{font-size:0.75rem;color:#9d8fc0;letter-spacing:2px;text-transform:uppercase;margin-bottom:1.5rem;text-align:center;}}
+.pin-display{{display:flex;gap:12px;margin-bottom:1.5rem;justify-content:center;}}
+.pin-dot{{width:16px;height:16px;border-radius:50%;border:2px solid #a78bfa;background:transparent;transition:background 0.2s ease,transform 0.15s ease;}}
+.pin-dot.filled{{background:#e879a0;border-color:#e879a0;transform:scale(1.2);}}
+.pin-dot.error{{background:#f87171;border-color:#f87171;animation:shake 0.4s ease;}}
+@keyframes shake{{0%,100%{{transform:translateX(0);}}20%{{transform:translateX(-6px);}}40%{{transform:translateX(6px);}}60%{{transform:translateX(-4px);}}80%{{transform:translateX(4px);}}}}
+.keypad{{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;max-width:240px;width:100%;}}
+.key{{background:rgba(255,255,255,0.07);border:1px solid rgba(167,139,250,0.25);border-radius:16px;padding:1rem;font-size:1.4rem;font-weight:500;color:#e8e0f0;cursor:pointer;text-align:center;transition:background 0.15s ease,transform 0.1s ease;font-family:'DM Sans',sans-serif;user-select:none;}}
+.key:hover{{background:rgba(167,139,250,0.15);transform:scale(1.06);}}
+.key:active{{transform:scale(0.93);background:rgba(232,121,160,0.2);}}
+.key.del{{font-size:1rem;color:#a78bfa;}}
+.key.empty{{visibility:hidden;}}
+.lock-hint{{font-size:0.65rem;color:#6b5f80;margin-top:1.2rem;letter-spacing:1px;}}
+
+/* HERO */
+.hero-tag{{font-size:0.7rem;letter-spacing:3px;text-transform:uppercase;color:#c084a0;text-align:center;}}
+.hero-name{{font-family:'Playfair Display',serif;font-size:clamp(3.5rem,12vw,6.5rem);font-weight:900;background:linear-gradient(135deg,#e879a0,#a78bfa,#60a5fa,#e879a0);background-size:300% 300%;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1.1;animation:gradientShift 4s ease infinite;text-align:center;}}
+@keyframes gradientShift{{0%,100%{{background-position:0% 50%;}}50%{{background-position:100% 50%;}}}}
+.hero-sub{{font-size:1.05rem;color:#9d6b8a;font-weight:300;text-align:center;}}
+.emoji-row{{text-align:center;font-size:1.6rem;letter-spacing:8px;animation:float 3s ease-in-out infinite;}}
+@keyframes float{{0%,100%{{transform:translateY(0);}}50%{{transform:translateY(-8px);}}}}
+
+/* SECTION LABELS */
+.section-label{{text-align:center;font-size:0.65rem;letter-spacing:3px;text-transform:uppercase;color:#c084a0;}}
+
+/* COUNTDOWN */
+.countdown-wrap{{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;}}
+.cd-box{{background:white;border-radius:18px;padding:1rem 1.2rem;min-width:70px;text-align:center;box-shadow:0 4px 24px rgba(232,121,160,0.15);border:1px solid rgba(232,121,160,0.2);transition:transform 0.3s ease;cursor:default;}}
+.cd-box:hover{{transform:translateY(-5px) scale(1.05);}}
+.cd-num{{font-family:'Playfair Display',serif;font-size:2.2rem;font-weight:700;color:#e879a0;line-height:1;display:block;transition:transform 0.15s ease;}}
+.cd-num.bump{{transform:scale(1.2);color:#a78bfa;}}
+.cd-label{{font-size:0.6rem;text-transform:uppercase;letter-spacing:2px;color:#c084a0;margin-top:4px;display:block;}}
+.bday-banner{{text-align:center;padding:1.5rem 2rem;background:linear-gradient(135deg,#fce7f0,#ede9fe,#dbeafe);border-radius:24px;animation:shimmer 3s ease-in-out infinite;width:100%;max-width:500px;}}
+@keyframes shimmer{{0%,100%{{box-shadow:0 0 30px rgba(232,121,160,0.2);}}50%{{box-shadow:0 0 60px rgba(167,139,250,0.4);}}}}
+.bday-title{{font-family:'Playfair Display',serif;font-size:2.2rem;background:linear-gradient(135deg,#e879a0,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:float 2s ease-in-out infinite;}}
+
+/* BUTTONS */
+.btn-row{{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;}}
+.btn{{border:none;border-radius:50px;padding:0.65rem 1.4rem;font-size:0.8rem;font-family:'DM Sans',sans-serif;font-weight:500;cursor:pointer;transition:transform 0.2s ease,box-shadow 0.2s ease;}}
+.btn-primary{{background:linear-gradient(135deg,#e879a0,#a78bfa);color:white;box-shadow:0 4px 20px rgba(232,121,160,0.3);}}
+.btn-primary:hover{{transform:translateY(-3px) scale(1.04);box-shadow:0 8px 30px rgba(232,121,160,0.4);}}
+.btn-primary:active{{transform:scale(0.96);}}
+.btn-outline{{background:white;color:#e879a0;border:2px solid #e879a0;}}
+.btn-outline:hover{{background:#fff0f5;transform:translateY(-3px);}}
+.btn-dev{{background:#1e1e2e;color:#a78bfa;border:1px dashed #a78bfa55;font-size:0.7rem;padding:0.55rem 1rem;}}
+.btn-dev:hover{{background:#2a2440;transform:translateY(-2px);}}
+.dev-badge{{display:inline-block;background:#1e1e2e;color:#a78bfa;font-size:0.6rem;font-family:monospace;padding:2px 6px;border-radius:4px;margin-left:4px;border:1px solid #a78bfa44;}}
+
+/* ROAST */
+.fact-card{{background:linear-gradient(135deg,#fdf2f8,#faf5ff);border-radius:20px;padding:1.2rem 1.5rem;text-align:center;border:1px solid rgba(232,121,160,0.15);transition:opacity 0.3s ease,transform 0.3s ease;min-height:100px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;width:100%;max-width:500px;}}
+.fact-card.switching{{opacity:0;transform:scale(0.95);}}
+.fact-emoji{{font-size:2rem;}}
+.fact-text{{color:#6b4f6b;font-size:0.88rem;line-height:1.7;}}
+.fact-counter{{color:#c084a0;font-size:0.62rem;letter-spacing:1px;}}
+
+/* PHOTO SLIDESHOW */
+.photo-stage{{position:relative;width:100%;max-width:340px;aspect-ratio:1;border-radius:24px;overflow:hidden;cursor:pointer;box-shadow:0 12px 40px rgba(232,121,160,0.2);flex-shrink:0;}}
+.photo-slide{{position:absolute;top:0;left:0;width:100%;height:100%;display:flex;align-items:center;justify-content:center;transition:opacity 0.5s ease,transform 0.5s ease;}}
+.photo-slide img{{width:100%;height:100%;object-fit:cover;border-radius:24px;}}
+.photo-slide .ph{{width:100%;height:100%;background:linear-gradient(135deg,#fce7f0,#ede9fe);display:flex;align-items:center;justify-content:center;font-size:3.5rem;border-radius:24px;border:2px dashed rgba(232,121,160,0.3);}}
+.photo-slide.hidden{{opacity:0;transform:scale(0.92);pointer-events:none;}}
+.photo-dots{{display:flex;gap:6px;justify-content:center;}}
+.photo-dot{{width:7px;height:7px;border-radius:50%;background:rgba(232,121,160,0.3);transition:background 0.3s ease,transform 0.3s ease;}}
+.photo-dot.active{{background:#e879a0;transform:scale(1.3);}}
+.photo-hint{{font-size:0.65rem;color:#c084a0;letter-spacing:1px;}}
+
+/* GAME */
+.game-wrap{{width:100%;max-width:480px;background:white;border-radius:24px;padding:1.5rem;text-align:center;box-shadow:0 8px 40px rgba(232,121,160,0.12);border:1px solid rgba(232,121,160,0.18);}}
+.game-question{{font-family:'Playfair Display',serif;font-size:1.15rem;color:#6b4f6b;margin-bottom:0.3rem;}}
+.game-sub{{font-size:0.73rem;color:#c084a0;letter-spacing:1px;margin-bottom:0.8rem;}}
+.game-arena{{position:relative;width:100%;height:140px;border:2px dashed rgba(232,121,160,0.25);border-radius:16px;overflow:hidden;background:linear-gradient(135deg,#fdf2f8,#faf5ff);}}
+.game-yes-btn{{background:linear-gradient(135deg,#e879a0,#a78bfa);color:white;border:none;border-radius:50px;padding:0.65rem 1.6rem;font-size:0.82rem;font-family:'DM Sans',sans-serif;font-weight:500;cursor:pointer;box-shadow:0 4px 20px rgba(232,121,160,0.3);position:absolute;left:25%;top:50%;transform:translate(-50%,-50%);transition:transform 0.15s ease;z-index:2;}}
+.game-yes-btn:hover{{transform:translate(-50%,-50%) scale(1.08);}}
+.game-yes-btn:active{{transform:translate(-50%,-50%) scale(0.95);}}
+.btn-no{{background:white;color:#9d6b8a;border:2px solid #e0b4c8;border-radius:50px;padding:0.65rem 1.4rem;font-size:0.82rem;font-family:'DM Sans',sans-serif;font-weight:500;cursor:pointer;position:absolute;white-space:nowrap;transition:left 0.4s cubic-bezier(.25,.46,.45,.94),top 0.4s cubic-bezier(.25,.46,.45,.94),font-size 0.2s ease;left:70%;top:50%;transform:translate(-50%,-50%);}}
+.game-result{{font-size:1rem;color:#e879a0;font-family:'Playfair Display',serif;margin-top:0.8rem;animation:popIn 0.4s ease both;display:none;}}
+@keyframes popIn{{from{{opacity:0;transform:scale(0.8);}}to{{opacity:1;transform:scale(1);}}}}
+
+/* FUN FACTS about her */
+.fun-fact-card{{background:white;border-radius:20px;padding:1.5rem;text-align:center;box-shadow:0 4px 24px rgba(167,139,250,0.1);border:1px solid rgba(167,139,250,0.15);width:100%;max-width:500px;animation:fadeSlideUp 0.5s ease both;}}
+.fun-fact-emoji{{font-size:2.5rem;margin-bottom:0.5rem;}}
+.fun-fact-title{{font-family:'Playfair Display',serif;font-size:1rem;color:#6b4f6b;margin-bottom:0.3rem;}}
+.fun-fact-text{{font-size:0.85rem;color:#9d6b8a;line-height:1.6;}}
+
+/* MESSAGE */
+.msg-wrap{{width:100%;max-width:500px;background:white;border-radius:24px;padding:1.8rem;box-shadow:0 8px 40px rgba(167,139,250,0.12);border:1px solid rgba(167,139,250,0.18);}}
+.msg-quote{{font-size:3rem;color:#f0abca;font-family:'Playfair Display',serif;line-height:0.5;margin-bottom:1rem;}}
+.msg-text{{font-size:0.88rem;line-height:1.95;color:#6b4f6b;font-weight:300;}}
+.msg-sign{{margin-top:1.2rem;font-family:'Playfair Display',serif;font-style:italic;color:#c084a0;font-size:0.95rem;}}
+
+/* AUDIO PLAYER */
+.audio-card{{background:white;border-radius:24px;padding:1.8rem;width:100%;max-width:480px;box-shadow:0 8px 40px rgba(232,121,160,0.15);border:1px solid rgba(232,121,160,0.2);text-align:center;}}
+.audio-title{{font-family:'Playfair Display',serif;font-size:1.2rem;color:#6b4f6b;margin-bottom:0.2rem;}}
+.audio-sub{{font-size:0.75rem;color:#c084a0;letter-spacing:1px;margin-bottom:1.5rem;}}
+.audio-visualizer{{display:flex;align-items:flex-end;justify-content:center;gap:4px;height:48px;margin-bottom:1.2rem;}}
+.audio-bar{{width:6px;border-radius:3px;background:linear-gradient(to top,#e879a0,#a78bfa);transition:height 0.15s ease;height:6px;}}
+.audio-bar.active{{animation:barBounce 0.6s ease-in-out infinite;}}
+.audio-bar:nth-child(2){{animation-delay:0.1s;}}
+.audio-bar:nth-child(3){{animation-delay:0.2s;}}
+.audio-bar:nth-child(4){{animation-delay:0.05s;}}
+.audio-bar:nth-child(5){{animation-delay:0.15s;}}
+.audio-bar:nth-child(6){{animation-delay:0.25s;}}
+.audio-bar:nth-child(7){{animation-delay:0.08s;}}
+.audio-bar:nth-child(8){{animation-delay:0.18s;}}
+@keyframes barBounce{{0%,100%{{height:6px;}}50%{{height:36px;}}}}
+.audio-controls{{display:flex;align-items:center;gap:12px;justify-content:center;margin-bottom:1rem;}}
+.play-btn{{width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#e879a0,#a78bfa);border:none;color:white;font-size:1.4rem;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px rgba(232,121,160,0.35);transition:transform 0.2s ease,box-shadow 0.2s ease;}}
+.play-btn:hover{{transform:scale(1.08);box-shadow:0 8px 30px rgba(232,121,160,0.45);}}
+.play-btn:active{{transform:scale(0.95);}}
+.audio-progress-wrap{{width:100%;background:#fce7f0;border-radius:10px;height:6px;cursor:pointer;position:relative;}}
+.audio-progress-fill{{height:100%;border-radius:10px;background:linear-gradient(90deg,#e879a0,#a78bfa);width:0%;transition:width 0.3s linear;}}
+.audio-times{{display:flex;justify-content:space-between;font-size:0.65rem;color:#c084a0;font-family:monospace;margin-top:4px;}}
+.audio-label{{font-size:0.72rem;color:#9d6b8a;margin-top:0.8rem;font-style:italic;}}
+
+/* ENDING */
+.ending-wrap{{text-align:center;width:100%;max-width:500px;}}
+.ending-big{{font-family:'Playfair Display',serif;font-size:clamp(2rem,8vw,3.5rem);font-weight:900;background:linear-gradient(135deg,#e879a0,#a78bfa,#60a5fa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:gradientShift 3s ease infinite;margin-bottom:0.5rem;}}
+.ending-sub{{color:#9d6b8a;font-size:0.88rem;line-height:1.7;margin-bottom:1rem;}}
+
+.footer{{font-size:0.7rem;color:#c084a0;letter-spacing:1px;text-align:center;}}
+@keyframes fadeSlideUp{{from{{opacity:0;transform:translateY(20px);}}to{{opacity:1;transform:translateY(0);}}}}
+</style>
+</head>
+<body>
+<canvas id="confetti-canvas"></canvas>
+<div class="hearts-bg" id="hearts-bg"></div>
+
+<div class="nav-dots" id="nav-dots" style="display:none">
+  <button class="nav-dot" onclick="goTo(1)"></button>
+  <button class="nav-dot" onclick="goTo(2)"></button>
+  <button class="nav-dot" onclick="goTo(3)"></button>
+  <button class="nav-dot" onclick="goTo(4)"></button>
+  <button class="nav-dot" onclick="goTo(5)"></button>
+  <button class="nav-dot" onclick="goTo(6)"></button>
+  <button class="nav-dot" onclick="goTo(7)"></button>
+  <button class="nav-dot" onclick="goTo(8)"></button>
+  <button class="nav-dot" onclick="goTo(9)"></button>
+</div>
+
+<!-- TAP OVERLAY -->
+<div id="tap-overlay">
+  <div class="tap-emoji">&#127383;</div>
+  <div class="tap-text">tap anywhere to open</div>
+  <div class="tap-sub">something special is waiting</div>
+  <div class="tap-pulse">&#10024;</div>
+</div>
+
+<!-- PAGE 0: LOCK -->
+<div class="page active" id="page-lock">
+  <div class="lock-title">&#127383; hey sayumi &#127383;</div>
+  <div class="lock-sub">enter the secret code</div>
+  <div class="pin-display" id="pin-display">
+    <div class="pin-dot" id="d0"></div><div class="pin-dot" id="d1"></div>
+    <div class="pin-dot" id="d2"></div><div class="pin-dot" id="d3"></div>
+    <div class="pin-dot" id="d4"></div><div class="pin-dot" id="d5"></div>
+    <div class="pin-dot" id="d6"></div><div class="pin-dot" id="d7"></div>
+  </div>
+  <div class="keypad">
+    <div class="key" onclick="pressKey('1')">1</div>
+    <div class="key" onclick="pressKey('2')">2</div>
+    <div class="key" onclick="pressKey('3')">3</div>
+    <div class="key" onclick="pressKey('4')">4</div>
+    <div class="key" onclick="pressKey('5')">5</div>
+    <div class="key" onclick="pressKey('6')">6</div>
+    <div class="key" onclick="pressKey('7')">7</div>
+    <div class="key" onclick="pressKey('8')">8</div>
+    <div class="key" onclick="pressKey('9')">9</div>
+    <div class="key empty"></div>
+    <div class="key" onclick="pressKey('0')">0</div>
+    <div class="key del" onclick="deleteKey()">&#9003;</div>
+  </div>
+  <div class="lock-hint">hint: her bday &#128521;</div>
+</div>
+
+<!-- PAGE 1: HERO -->
+<div class="page" id="page-hero">
+  <div class="hero-tag">&#10022; a little something for you &#10022;</div>
+  <div class="hero-name">Sayumi</div>
+  <div class="hero-sub">turning 14 &middot; august 6th &#10024;</div>
+  <div class="emoji-row">&#127874; &#128151; &#127881; &#129782; &#129401;</div>
+  <button class="next-btn" onclick="goTo(2)">open &#128151;</button>
+</div>
+
+<!-- PAGE 2: COUNTDOWN -->
+<div class="page" id="page-countdown">
+  <div id="countdown-inner" style="width:100%;display:flex;flex-direction:column;align-items:center;gap:0.8rem;">
+    <div class="section-label">countdown to the big day &#127872;</div>
+    <div class="countdown-wrap">
+      <div class="cd-box"><span class="cd-num" id="cd-days">--</span><span class="cd-label">Days</span></div>
+      <div class="cd-box"><span class="cd-num" id="cd-hours">--</span><span class="cd-label">Hours</span></div>
+      <div class="cd-box"><span class="cd-num" id="cd-mins">--</span><span class="cd-label">Minutes</span></div>
+      <div class="cd-box"><span class="cd-num" id="cd-secs">--</span><span class="cd-label">Seconds</span></div>
+    </div>
+  </div>
+  <div id="bday-inner" style="display:none;width:100%;max-width:500px;">
+    <div class="bday-banner">
+      <div class="bday-title">&#127874; IT'S YOUR DAY!! &#127874;</div>
+      <p style="color:#9d6b8a;margin-top:0.8rem;">Happy Birthday Sayumi &#128151;</p>
+    </div>
+  </div>
+  <div class="btn-row">
+    <button class="btn btn-primary" onclick="launchConfetti()">&#127881; Confetti!</button>
+    <button class="btn btn-primary" onclick="heartShower()">&#128151; Hearts</button>
+    <button class="btn btn-dev" onclick="devMode()">&#9881;&#65039; dev 10s <span class="dev-badge">DEV</span></button>
+  </div>
+  <button class="next-btn" onclick="goTo(3)">next &#128151;</button>
+</div>
+
+<!-- PAGE 3: ROASTS -->
+<div class="page" id="page-roasts">
+  <div class="section-label">reasons ur actually the worst &#128557;</div>
+  <div class="fact-card" id="fact-card">
+    <div class="fact-emoji" id="fact-emoji">&#128557;</div>
+    <div class="fact-text" id="fact-text">threatens to slap me literally every other day and has never said sorry once</div>
+    <div class="fact-counter" id="fact-counter">1 / 5</div>
+  </div>
+  <button class="btn btn-outline" onclick="nextRoast()">next roast &#128514;</button>
+  <button class="next-btn" onclick="goTo(4)">next &#128151;</button>
+</div>
+
+<!-- PAGE 4: PHOTOS -->
+<div class="page" id="page-photos">
+  <div class="section-label">ur camera roll era &#128248;</div>
+  <div class="photo-stage" id="photo-stage" onclick="nextPhoto()">
+    <div id="photo-slides"></div>
+  </div>
+  <div class="photo-dots" id="photo-dots"></div>
+  <div class="photo-hint">tap to go to next pic &#128247;</div>
+  <button class="next-btn" onclick="goTo(5)">next &#128151;</button>
+</div>
+
+<!-- PAGE 5: GAME -->
+<div class="page" id="page-game">
+  <div class="game-wrap">
+    <div class="game-question" id="game-question">ur old now aren't u? &#128514;</div>
+    <div class="game-sub" id="game-sub">choose wisely</div>
+    <div class="game-arena" id="game-arena">
+      <button class="game-yes-btn" id="yes-btn" onclick="yesClicked()">yes &#128151;</button>
+      <button class="btn-no" id="no-btn" onmouseover="runAway()" ontouchstart="runAway()">no</button>
+    </div>
+    <div class="game-result" id="game-result"></div>
+  </div>
+  <button class="next-btn" onclick="goTo(6)" style="margin-top:0.8rem;">read my msg &#128140;</button>
+</div>
+
+<!-- PAGE 6: MESSAGE (scrollable) -->
+<div class="page scrollable" id="page-msg">
+  <div class="msg-wrap">
+    <div class="msg-quote">"</div>
+    <div class="msg-text">
+      happy birthday sayumi &#128151;&#127874; ur officially old now and i hope ur having the best time lmao. i still remember cambridge 6, the quiet nerd in the corner who wouldn't say a word to anyone, BUT NOT NOW OKK?? now she threatens to slap me every day and somehow tht's become one of my fav things about her &#128557;<br><br>
+      ik i've been a bit quiet lately and i'm sorry for tht, but i need u to know tht never changed how much u mean to me. u wrote me 4 whole pages once for jz no reason and i still think about tht, cuz tht's jz who u are. u give so much without even thinking about it and i don't say this enough but i'm so glad to have u in my life. like actually glad, not jz saying it. u've been there through so much and i don't take tht for granted &#129401;<br><br>
+      the kind of bsf tht checks on u, roasts u, threatens to hit u, and somehow still makes u feel like the luckiest person in the room &#128514;&#129782;<br><br>
+      have the best birthday okay. wear black obviously. eat way too much cake. and please jz go talk to geenuka already ur going to give yourself a heart attack every time i say his name &#128557;&#128153;<br><br>
+      cheers to u being a bit older, more unbothered and still living in the same era as me &#127874;&#129782;&#129401;
+    </div>
+    <div class="msg-sign">— ur bsf, always &#128151;</div>
+  </div>
+  <button class="next-btn" onclick="goTo(7)" style="flex-shrink:0;">almost done &#129782;</button>
+</div>
+
+<!-- PAGE 7: FUN FACTS about Sayumi -->
+<div class="page" id="page-facts">
+  <div class="section-label">some things about u &#129401;</div>
+  <div id="fun-facts-wrap" style="width:100%;max-width:500px;display:flex;flex-direction:column;gap:0.8rem;">
+    <div class="fun-fact-card">
+      <div class="fun-fact-emoji">&#127878;</div>
+      <div class="fun-fact-title">u came a long way</div>
+      <div class="fun-fact-text">from the quiet girl in cambridge 6 to the person who threatens to slap me daily. genuinely proud of this era.</div>
+    </div>
+    <div class="fun-fact-card" style="animation-delay:0.1s">
+      <div class="fun-fact-emoji">&#128221;</div>
+      <div class="fun-fact-title">u wrote me 4 pages. for no reason.</div>
+      <div class="fun-fact-text">tht says everything about who u are. u care a lot even when u don't have to.</div>
+    </div>
+    <div class="fun-fact-card" style="animation-delay:0.2s">
+      <div class="fun-fact-emoji">&#128420;</div>
+      <div class="fun-fact-title">the black fit era will never end</div>
+      <div class="fun-fact-text">and honestly? it shouldn't. it works.</div>
+    </div>
+  </div>
+  <button class="next-btn" onclick="goTo(8)">next &#127874;</button>
+</div>
+
+<!-- PAGE 8: AUDIO -->
+<div class="page" id="page-audio">
+  <div class="section-label">wait... is tht her singing? &#127908;</div>
+  <div class="audio-card">
+    <div class="audio-title">&#127925; freak of the fall</div>
+    <div class="audio-sub">featuring: sayumi live &#127908;</div>
+    <div class="audio-visualizer" id="visualizer">
+      <div class="audio-bar"></div><div class="audio-bar"></div>
+      <div class="audio-bar"></div><div class="audio-bar"></div>
+      <div class="audio-bar"></div><div class="audio-bar"></div>
+      <div class="audio-bar"></div><div class="audio-bar"></div>
+    </div>
+    <div class="audio-controls">
+      <button class="play-btn" id="play-btn" onclick="togglePlay()">&#9654;&#65039;</button>
+    </div>
+    <div class="audio-progress-wrap" id="progress-wrap" onclick="seekAudio(event)">
+      <div class="audio-progress-fill" id="progress-fill"></div>
+    </div>
+    <div class="audio-times">
+      <span id="cur-time">0:00</span>
+      <span id="dur-time">0:00</span>
+    </div>
+    <div class="audio-label">she actually sang this &#128557;&#128151;</div>
+  </div>
+  <audio id="sayu-audio" src="{audio_src}" preload="metadata"></audio>
+  <button class="next-btn" onclick="goTo(9)" style="margin-top:0.8rem;">last page &#127874;</button>
+</div>
+
+<!-- PAGE 9: ENDING -->
+<div class="page" id="page-ending">
+  <div class="ending-wrap">
+    <div class="ending-big">Happy Birthday &#127874;</div>
+    <div class="ending-sub">
+      this only happens once a year.<br>
+      hope u make it count.<br>
+      wear black. eat cake. be unbothered.<br>
+      that's the whole plan. &#128151;
+    </div>
+    <div class="btn-row" style="justify-content:center;margin-bottom:1rem;">
+      <button class="btn btn-primary" onclick="launchConfetti()">&#127881; one last confetti</button>
+      <button class="btn btn-primary" onclick="heartShower()">&#128151; heart shower</button>
+    </div>
+    <div class="footer">made with &#128151; &middot; for sayumi &middot; august 6th 2026</div>
+  </div>
+</div>
+
+<script>
+// ---- TOUCH RELIABILITY FIX ----
+// Inside a nested Streamlit iframe, mobile browsers can delay or drop the
+// synthetic 'click' that normally follows a touch (partly to detect
+// double-tap-to-zoom). That's what makes buttons feel unresponsive.
+// Fix: on touchend, immediately fire the click ourselves instead of
+// waiting for the browser to translate the touch on its own.
+const TAP_SELECTOR = '.key,.next-btn,.btn,.game-yes-btn,.btn-no,.nav-dot,.photo-stage,.play-btn,#progress-wrap,#tap-overlay';
+document.addEventListener('touchend', function(e) {{
+  const target = e.target.closest(TAP_SELECTOR);
+  if (!target) return;
+  e.preventDefault();
+  if (target.id === 'progress-wrap') {{
+    seekAudio(e);
+  }} else {{
+    target.click();
+  }}
+}}, {{passive: false}});
+
+document.addEventListener('DOMContentLoaded', () => {{
+  const overlay = document.getElementById('tap-overlay');
+  if (overlay) {{
+    overlay.addEventListener('click', () => {{
+      overlay.classList.add('gone');
+      document.body.focus();
+    }}, {{once: true}});
+  }}
+}});
+
+// ---- PAGE SYSTEM ----
+let currentPage = 0;
+const pageIds = ['page-lock','page-hero','page-countdown','page-roasts','page-photos','page-game','page-msg','page-facts','page-audio','page-ending'];
+const totalNavPages = 8;
+
+function goTo(idx) {{
+  const prev = document.getElementById(pageIds[currentPage]);
+  const next = document.getElementById(pageIds[idx]);
+  const goingForward = idx > currentPage;
+  prev.classList.remove('active');
+  prev.classList.add(goingForward ? 'exit-up' : 'exit-down');
+  setTimeout(() => {{ prev.classList.remove('exit-up','exit-down'); }}, 600);
+  // scroll to top for scrollable pages
+  next.scrollTop = 0;
+  next.classList.add('active');
+  currentPage = idx;
+  const dots = document.querySelectorAll('.nav-dot');
+  dots.forEach((d,i) => d.classList.toggle('active', i === idx - 1));
+  if (idx > 0) document.getElementById('nav-dots').style.display = 'flex';
+}}
+
+// ---- LOCK ----
+const PASSWORD = '06082012';
+let pin = '';
+function pressKey(k) {{
+  if (pin.length >= 8) return;
+  pin += k; updateDots();
+  if (pin.length === 8) setTimeout(() => {{ pin === PASSWORD ? unlockSuccess() : wrongPin(); }}, 150);
+}}
+function deleteKey() {{ pin = pin.slice(0,-1); updateDots(); }}
+function updateDots() {{
+  for (let i=0;i<8;i++) {{
+    const d = document.getElementById('d'+i);
+    d.classList.toggle('filled', i < pin.length);
+    d.classList.remove('error');
+  }}
+}}
+function wrongPin() {{
+  for (let i=0;i<8;i++) document.getElementById('d'+i).classList.add('error');
+  setTimeout(() => {{ pin=''; updateDots(); }}, 600);
+}}
+function unlockSuccess() {{
+  launchConfetti();
+  setTimeout(() => goTo(1), 400);
+}}
+
+// ---- FLOATING HEARTS ----
+const heartsBg = document.getElementById('hearts-bg');
+const heartEmojis = ['&#128151;','&#127800;','&#128156;','&#10024;','&#127872;','&#128149;','&#127801;','&#128171;'];
+for (let i=0;i<16;i++) spawnHeart(true);
+function spawnHeart(initial) {{
+  const h = document.createElement('div');
+  h.className = 'heart-float';
+  h.innerHTML = heartEmojis[Math.floor(Math.random()*heartEmojis.length)];
+  h.style.left = Math.random()*100+'vw';
+  const dur = 7+Math.random()*10;
+  h.style.animationDuration = dur+'s';
+  h.style.animationDelay = (initial?Math.random()*8:0)+'s';
+  h.style.fontSize = (0.8+Math.random()*1.2)+'rem';
+  heartsBg.appendChild(h);
+  setTimeout(() => {{ h.remove(); spawnHeart(false); }}, (dur+(initial?Math.random()*8:0))*1000);
+}}
+
+// ---- CONFETTI ----
+const canvas = document.getElementById('confetti-canvas');
+const ctx = canvas.getContext('2d');
+function resizeCanvas() {{ canvas.width=window.innerWidth; canvas.height=window.innerHeight; }}
+resizeCanvas(); window.addEventListener('resize', resizeCanvas);
+let pieces=[], animId=null, fadeTimer=null;
+function launchConfetti() {{
+  if (fadeTimer) {{ clearTimeout(fadeTimer); fadeTimer=null; }}
+  const colors=['#e879a0','#a78bfa','#60a5fa','#fbbf24','#34d399','#f472b6','#fb923c'];
+  for (let i=0;i<180;i++) {{
+    pieces.push({{x:Math.random()*canvas.width,y:-20-Math.random()*100,w:6+Math.random()*8,h:10+Math.random()*8,
+      color:colors[Math.floor(Math.random()*colors.length)],speed:2+Math.random()*4,
+      drift:(Math.random()-0.5)*2,spin:(Math.random()-0.5)*0.15,angle:Math.random()*Math.PI*2,opacity:0.85,fading:false}});
+  }}
+  if (!animId) animateConfetti();
+  fadeTimer = setTimeout(() => {{ pieces.forEach(p=>p.fading=true); }}, 4000);
+}}
+function animateConfetti() {{
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  pieces = pieces.filter(p=>p.opacity>0.01&&p.y<canvas.height+30);
+  pieces.forEach(p=>{{
+    p.y+=p.speed;p.x+=p.drift;p.angle+=p.spin;
+    if(p.fading) p.opacity=Math.max(0,p.opacity-0.025);
+    ctx.save();ctx.translate(p.x,p.y);ctx.rotate(p.angle);
+    ctx.globalAlpha=p.opacity;ctx.fillStyle=p.color;
+    ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h);ctx.restore();
+  }});
+  if(pieces.length>0) animId=requestAnimationFrame(animateConfetti);
+  else {{ animId=null; ctx.clearRect(0,0,canvas.width,canvas.height); }}
+}}
+function heartShower() {{
+  for(let i=0;i<30;i++) setTimeout(()=>spawnHeart(false), i*60);
+}}
+
+// ---- COUNTDOWN ----
+let devOffset=0,devActive=false,bdayTriggered=false;
+function devMode(){{
+  const now=new Date(); const bday=getNextBirthday();
+  devOffset=Math.floor((bday-now)/1000)-10;
+  devActive=true; bdayTriggered=false; updateCountdown();
+}}
+function getNextBirthday(){{
+  const now=new Date();
+  let bday=new Date(now.getFullYear(),7,6,0,0,0);
+  if(now>=bday) bday.setFullYear(bday.getFullYear()+1);
+  return bday;
+}}
+function updateCountdown(){{
+  const now=new Date(); const bday=getNextBirthday();
+  let diff=Math.floor((bday-now)/1000)-(devActive?devOffset:0);
+  if(diff<=0){{
+    document.getElementById('countdown-inner').style.display='none';
+    document.getElementById('bday-inner').style.display='block';
+    if(!bdayTriggered){{bdayTriggered=true;launchConfetti();setTimeout(()=>launchConfetti(),600);}}
+    return;
+  }}
+  bdayTriggered=false;
+  document.getElementById('countdown-inner').style.display='flex';
+  document.getElementById('bday-inner').style.display='none';
+  setNum('cd-days',Math.floor(diff/86400));
+  setNum('cd-hours',Math.floor((diff%86400)/3600));
+  setNum('cd-mins',Math.floor((diff%3600)/60));
+  setNum('cd-secs',diff%60);
+}}
+let prevVals={{}};
+function setNum(id,val){{
+  const el=document.getElementById(id);
+  const str=String(val).padStart(2,'0');
+  if(prevVals[id]!==str){{el.classList.add('bump');setTimeout(()=>el.classList.remove('bump'),150);prevVals[id]=str;}}
+  el.textContent=str;
+}}
+updateCountdown(); setInterval(updateCountdown,1000);
+
+// ---- ROASTS ----
+const roasts=[
+  {{emoji:'&#128557;',text:"threatens to slap me literally every other day and has never said sorry once"}},
+  {{emoji:'&#128221;',text:"wrote 4 whole pages for no reason at all and thinks tht's totally normal"}},
+  {{emoji:'&#128128;',text:"crashes out every single time geenuka gets mentioned. every. single. time."}},
+  {{emoji:'&#129408;',text:"wears black like it's her whole thing and honestly? fair. it works."}},
+  {{emoji:'&#129504;',text:"was the quietest nerd in cambridge 6 and now won't stop talking or threatening me"}},
+];
+let roastIdx=0;
+function nextRoast(){{
+  const card=document.getElementById('fact-card');
+  card.classList.add('switching');
+  setTimeout(()=>{{
+    roastIdx=(roastIdx+1)%roasts.length;
+    document.getElementById('fact-emoji').innerHTML=roasts[roastIdx].emoji;
+    document.getElementById('fact-text').textContent=roasts[roastIdx].text;
+    document.getElementById('fact-counter').textContent=(roastIdx+1)+' / '+roasts.length;
+    card.classList.remove('switching');
+  }},250);
+}}
+
+// ---- PHOTO SLIDESHOW ----
+const photoSrcs = {photo_srcs_js};
+let photoIdx = 0;
+const slidesEl = document.getElementById('photo-slides');
+const dotsEl = document.getElementById('photo-dots');
+
+photoSrcs.forEach((src, i) => {{
+  const slide = document.createElement('div');
+  slide.className = 'photo-slide' + (i>0?' hidden':'');
+  if(src.startsWith('__placeholder_')){{
+    const emoji = src.replace('__placeholder_','').replace('__','');
+    slide.innerHTML = '<div class="ph">'+emoji+'</div>';
+  }} else {{
+    slide.innerHTML = '<img src="'+src+'" alt="pic">';
+  }}
+  slidesEl.appendChild(slide);
+
+  const dot = document.createElement('div');
+  dot.className = 'photo-dot'+(i===0?' active':'');
+  dotsEl.appendChild(dot);
+}});
+
+function nextPhoto(){{
+  const slides = slidesEl.querySelectorAll('.photo-slide');
+  const dots = dotsEl.querySelectorAll('.photo-dot');
+  slides[photoIdx].classList.add('hidden');
+  dots[photoIdx].classList.remove('active');
+  photoIdx = (photoIdx+1)%slides.length;
+  slides[photoIdx].classList.remove('hidden');
+  dots[photoIdx].classList.add('active');
+}}
+
+// ---- GAME ----
+const questions=[
+  {{q:'ur old now aren\\'t u? &#128514;', yesLabel:'yes &#128557;', noLabel:'no', win:'SHE ADMITTED IT &#128514;&#128151; welcome to old age'}},
+  {{q:'should i get slapped rn? &#129767;', yesLabel:'yes obviously', noLabel:'no', win:'she said yes &#128128; i accept my fate'}},
+  {{q:'ur da best bsf right? &#129402;', yesLabel:'yes ofc &#128151;', noLabel:'no', win:'correct!! &#128151; tht was the only right answer'}},
+  {{q:'will u be more active this year? &#128247;', yesLabel:'yes i will &#128151;', noLabel:'no', win:'she promised!! &#128151; i\\'m holding u to tht'}},
+  {{q:'will u enjoy ur bday? &#127874;', yesLabel:'absolutely &#127874;', noLabel:'no', win:'good!! &#127874;&#128151; as it should be!'}},
+];
+let qIdx=0,noEscapes=0,gameWon=false;
+const noBtn=document.getElementById('no-btn');
+const yesBtn=document.getElementById('yes-btn');
+const arena=document.getElementById('game-arena');
+
+function updateGameQuestion(){{
+  document.getElementById('game-question').innerHTML=questions[qIdx].q;
+  yesBtn.innerHTML=questions[qIdx].yesLabel;
+  noBtn.textContent=questions[qIdx].noLabel;
+  noEscapes=0;
+  noBtn.style.fontSize='0.82rem';
+  noBtn.style.left='70%';
+  noBtn.style.top='50%';
+}}
+
+function runAway(){{
+  if(gameWon) return;
+  noEscapes++;
+  const size=Math.max(0.55,0.82-noEscapes*0.04);
+  noBtn.style.fontSize=size+'rem';
+  noBtn.style.transition='left 0.4s cubic-bezier(.25,.46,.45,.94),top 0.4s cubic-bezier(.25,.46,.45,.94)';
+  const aw=arena.offsetWidth, ah=arena.offsetHeight;
+  const bw=noBtn.offsetWidth, bh=noBtn.offsetHeight;
+  // keep well inside bounds
+  const nx=bw/2+Math.random()*(aw-bw)*0.9+aw*0.0;
+  const ny=bh/2+Math.random()*(ah-bh)*0.9;
+  // avoid yes button area (left 40%)
+  const finalX = nx < aw*0.4 ? aw*0.55+Math.random()*aw*0.35 : nx;
+  noBtn.style.left=Math.min(finalX,aw-bw/2)+'px';
+  noBtn.style.top=Math.max(bh/2,Math.min(ny,ah-bh/2))+'px';
+  if(noEscapes>=5) noBtn.textContent='noooo 😭';
+  else if(noEscapes>=3) noBtn.textContent='no... 🫣';
+}}
+
+function yesClicked(){{
+  if(gameWon) return;
+  gameWon=true;
+  yesBtn.style.display='none'; noBtn.style.display='none';
+  const result=document.getElementById('game-result');
+  result.style.display='block';
+  result.innerHTML=questions[qIdx].win;
+  heartShower();
+  setTimeout(()=>{{
+    qIdx=(qIdx+1)%questions.length;
+    gameWon=false;
+    yesBtn.style.display='block'; noBtn.style.display='block';
+    result.style.display='none';
+    updateGameQuestion();
+  }},2500);
+}}
+
+// ---- AUDIO PLAYER ----
+const audio = document.getElementById('sayu-audio');
+const playBtn = document.getElementById('play-btn');
+const progressFill = document.getElementById('progress-fill');
+const curTime = document.getElementById('cur-time');
+const durTime = document.getElementById('dur-time');
+const bars = document.querySelectorAll('.audio-bar');
+let isPlaying = false;
+
+function togglePlay() {{
+  if (!audio.src || audio.src === window.location.href) return;
+  if (isPlaying) {{
+    audio.pause();
+    isPlaying = false;
+    playBtn.innerHTML = '&#9654;&#65039;';
+    bars.forEach(b => b.classList.remove('active'));
+  }} else {{
+    audio.play();
+    isPlaying = true;
+    playBtn.innerHTML = '&#9646;&#9646;';
+    bars.forEach(b => b.classList.add('active'));
+  }}
+}}
+
+function fmtTime(s) {{
+  const m = Math.floor(s/60);
+  const sec = Math.floor(s%60);
+  return m+':'+(sec<10?'0':'')+sec;
+}}
+
+audio.addEventListener('timeupdate', () => {{
+  if (audio.duration) {{
+    progressFill.style.width = (audio.currentTime/audio.duration*100)+'%';
+    curTime.textContent = fmtTime(audio.currentTime);
+  }}
+}});
+
+audio.addEventListener('loadedmetadata', () => {{
+  durTime.textContent = fmtTime(audio.duration);
+}});
+
+audio.addEventListener('ended', () => {{
+  isPlaying = false;
+  playBtn.innerHTML = '&#9654;&#65039;';
+  bars.forEach(b => b.classList.remove('active'));
+  progressFill.style.width = '0%';
+  curTime.textContent = '0:00';
+}});
+
+function seekAudio(e) {{
+  if (!audio.duration) return;
+  const rect = document.getElementById('progress-wrap').getBoundingClientRect();
+  const clientX = (e.changedTouches && e.changedTouches.length) ? e.changedTouches[0].clientX : e.clientX;
+  const pct = (clientX - rect.left) / rect.width;
+  audio.currentTime = Math.min(Math.max(pct,0),1) * audio.duration;
+}}
+</script>
+</body>
+</html>"""
+
+components.html(html, height=750, scrolling=False)
