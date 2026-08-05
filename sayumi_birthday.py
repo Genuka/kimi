@@ -137,22 +137,6 @@ for i, meta in enumerate(song_meta, start=1):
     songs_data.append({"title": meta["title"], "artist": meta["artist"], "note": meta["note"], "src": src, "n": i})
 songs_js = json.dumps(songs_data, ensure_ascii=False)
 
-# dev.txt controls whether the countdown-skip dev button shows up.
-# put "1" in dev.txt to show it (for testing), "0" (or delete the file) to hide it
-# before sending the real link to her.
-def load_dev_flag(path="dev.txt"):
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            return f.read().strip() == "1"
-    except FileNotFoundError:
-        return False
-
-dev_enabled = load_dev_flag()
-dev_button_html = (
-    '<button class="btn btn-dev" onclick="devMode()">&#9881;&#65039; dev 10s <span class="dev-badge">DEV</span></button>'
-    if dev_enabled else ''
-)
-
 html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -456,7 +440,7 @@ button,.key,.next-btn,.btn,.game-yes-btn,.btn-no,.nav-dot,.photo-stage,.play-btn
   <div class="btn-row">
     <button class="btn btn-primary" onclick="launchConfetti()">&#127881; Confetti!</button>
     <button class="btn btn-primary" onclick="heartShower()">&#128151; Hearts</button>
-    {dev_button_html}
+    <button class="btn btn-dev" onclick="devMode()">&#9881;&#65039; dev 10s <span class="dev-badge">DEV</span></button>
   </div>
   <button class="next-btn" id="countdown-next-btn" onclick="goTo(3)" style="display:none;">next &#128151;</button>
   <div class="lock-hint" id="countdown-lock-msg">locked till her bday &#128274; come back on aug 6th &#128151;</div>
