@@ -4,6 +4,7 @@ import streamlit.components.v1 as components
 import base64
 import json
 import re
+import html as html_lib
 
 st.set_page_config(page_title="Happy Birthday Sayumi", page_icon="🎂", layout="centered")
 st.markdown("""
@@ -68,6 +69,73 @@ def load_facts(path="facts.txt"):
 
 fun_facts = load_facts()
 fun_facts_js = json.dumps(fun_facts, ensure_ascii=False)
+
+# load the birthday message from message.txt (same folder as this script)
+# paragraphs separated by a blank line. the signature line is NOT part of
+# this file — it stays fixed in the code.
+def load_message(path="message.txt"):
+    default = [
+        "happy birthday sayumi 💗🎂 ur officially old now and i hope ur having the best time lmao. i still remember cambridge 6, the quiet nerd in the corner who wouldn't say a word to anyone, BUT NOT NOW OKK?? now she threatens to slap me every day and somehow tht's become one of my fav things about her 😭",
+        "i need u to know tht never changed how much u mean to me. u wrote me 4 whole pages once for jz no reason and i still think about tht, cuz tht's jz who u are. u give so much without even thinking about it and i don't say this enough but i'm so glad to have u in my life. like actually glad, not jz saying it. u've been there through so much and i don't take tht for granted 🥹",
+        "the kind of bsf tht checks on u, roasts u, threatens to hit u, and somehow still makes u feel like the luckiest person in the room 😂🫶",
+        "have the best birthday okay. eat way too much cake.",
+        "cheers to u being a bit older, more unbothered and still living in the same era as me 🎂🫶🥹",
+    ]
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            raw = f.read().strip()
+    except FileNotFoundError:
+        return default
+    if not raw:
+        return default
+    paragraphs = [p.strip() for p in re.split(r'\n\s*\n', raw) if p.strip()]
+    return paragraphs if paragraphs else default
+
+message_paragraphs = load_message()
+message_paragraphs_js = json.dumps(message_paragraphs, ensure_ascii=False)
+
+# load playlist from songs.txt (same folder as this script)
+# format, one per line: N. title — artist | optional note
+# audio files: song1.mp3, song2.mp3 ... (mp3/mp4/m4a/wav/ogg all work)
+def load_songs(path="songs.txt"):
+    default = [{"title": "must have been the wind", "artist": "", "note": ""}]
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            raw_lines = [l.strip() for l in f if l.strip()]
+    except FileNotFoundError:
+        return default
+    songs = []
+    for line in raw_lines:
+        m = re.match(r'^\d+\.\s*(.*)$', line)
+        if not m:
+            continue
+        rest = m.group(1)
+        note = ""
+        if '|' in rest:
+            rest, note = rest.split('|', 1)
+            note = note.strip()
+        rest = rest.strip()
+        if '—' in rest:
+            title, artist = rest.split('—', 1)
+        elif ' - ' in rest:
+            title, artist = rest.split(' - ', 1)
+        else:
+            title, artist = rest, ""
+        songs.append({"title": title.strip(), "artist": artist.strip(), "note": note})
+    return songs if songs else default
+
+song_meta = load_songs()
+_song_mime = {'mp3': 'audio/mpeg', 'mp4': 'video/mp4', 'm4a': 'audio/mp4', 'wav': 'audio/wav', 'ogg': 'audio/ogg'}
+songs_data = []
+for i, meta in enumerate(song_meta, start=1):
+    src = None
+    for ext in ['mp3', 'mp4', 'm4a', 'wav', 'ogg']:
+        b64 = img_to_b64(f"song{i}.{ext}")
+        if b64:
+            src = f"data:{_song_mime[ext]};base64,{b64}"
+            break
+    songs_data.append({"title": meta["title"], "artist": meta["artist"], "note": meta["note"], "src": src, "n": i})
+songs_js = json.dumps(songs_data, ensure_ascii=False)
 
 html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -264,6 +332,28 @@ button,.key,.next-btn,.btn,.game-yes-btn,.btn-no,.nav-dot,.photo-stage,.play-btn
 .ending-big{{font-family:'Playfair Display',serif;font-size:clamp(2rem,8vw,3.5rem);font-weight:900;background:linear-gradient(135deg,#e879a0,#a78bfa,#60a5fa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:gradientShift 3s ease infinite;margin-bottom:0.5rem;}}
 .ending-sub{{color:#9d6b8a;font-size:0.88rem;line-height:1.7;margin-bottom:1rem;}}
 
+/* RATE ME */
+.rate-wrap{{width:100%;max-width:460px;display:flex;flex-direction:column;gap:1rem;}}
+.stat-row{{background:white;border-radius:16px;padding:0.9rem 1.1rem;box-shadow:0 4px 20px rgba(232,121,160,0.1);border:1px solid rgba(232,121,160,0.12);}}
+.stat-top{{display:flex;justify-content:space-between;align-items:center;margin-bottom:0.4rem;}}
+.stat-label{{font-size:0.75rem;color:#6b4f6b;text-transform:uppercase;letter-spacing:1px;font-weight:500;}}
+.stat-score{{font-family:'Playfair Display',serif;color:#e879a0;font-weight:700;font-size:0.9rem;flex-shrink:0;margin-left:0.6rem;}}
+.stat-bar{{width:100%;height:8px;background:#fce7f0;border-radius:6px;overflow:hidden;}}
+.stat-fill{{height:100%;width:0%;background:linear-gradient(90deg,#e879a0,#a78bfa);border-radius:6px;transition:width 0.8s cubic-bezier(.25,.46,.45,.94);}}
+.stat-caption{{font-size:0.7rem;color:#9d6b8a;margin-top:0.4rem;font-style:italic;}}
+
+/* PLAYLIST */
+.playlist-wrap{{width:100%;max-width:460px;display:flex;flex-direction:column;gap:0.75rem;}}
+.track-card{{background:white;border-radius:18px;padding:0.85rem 1.05rem;display:flex;align-items:center;gap:0.85rem;box-shadow:0 4px 20px rgba(232,121,160,0.1);border:1px solid rgba(232,121,160,0.12);}}
+.track-play-btn{{flex-shrink:0;width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#e879a0,#a78bfa);border:none;color:white;font-size:0.95rem;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 12px rgba(232,121,160,0.3);}}
+.track-info{{flex:1;min-width:0;text-align:left;}}
+.track-title{{font-family:'Playfair Display',serif;font-size:0.92rem;color:#6b4f6b;}}
+.track-artist{{font-size:0.68rem;color:#c084a0;margin-top:1px;}}
+.track-note{{font-size:0.68rem;color:#9d6b8a;font-style:italic;margin-top:2px;}}
+.track-missing{{font-size:0.62rem;color:#d6b9c6;margin-top:4px;}}
+.track-progress-wrap{{width:100%;background:#fce7f0;border-radius:8px;height:5px;cursor:pointer;margin-top:6px;}}
+.track-progress-fill{{height:100%;width:0%;background:linear-gradient(90deg,#e879a0,#a78bfa);border-radius:8px;transition:width 0.2s linear;}}
+
 .footer{{font-size:0.7rem;color:#c084a0;letter-spacing:1px;text-align:center;}}
 @keyframes fadeSlideUp{{from{{opacity:0;transform:translateY(20px);}}to{{opacity:1;transform:translateY(0);}}}}
 </style>
@@ -281,6 +371,8 @@ button,.key,.next-btn,.btn,.game-yes-btn,.btn-no,.nav-dot,.photo-stage,.play-btn
   <button class="nav-dot" onclick="goTo(6)"></button>
   <button class="nav-dot" onclick="goTo(7)"></button>
   <button class="nav-dot" onclick="goTo(8)"></button>
+  <button class="nav-dot" onclick="goTo(9)"></button>
+  <button class="nav-dot" onclick="goTo(10)"></button>
 </div>
 
 <!-- TAP OVERLAY -->
@@ -381,13 +473,7 @@ button,.key,.next-btn,.btn,.game-yes-btn,.btn-no,.nav-dot,.photo-stage,.play-btn
 <div class="page scrollable" id="page-msg">
   <div class="msg-wrap">
     <div class="msg-quote">"</div>
-    <div class="msg-text">
-      happy birthday sayumi &#128151;&#127874; ur officially old now and i hope ur having the best time lmao. i still remember cambridge 6, the quiet nerd in the corner who wouldn't say a word to anyone, BUT NOT NOW OKK?? now she threatens to slap me every day and somehow tht's become one of my fav things about her &#128557;<br><br>
-      i need u to know tht never changed how much u mean to me. u wrote me 4 whole pages once for jz no reason and i still think about tht, cuz tht's jz who u are. u give so much without even thinking about it and i don't say this enough but i'm so glad to have u in my life. like actually glad, not jz saying it. u've been there through so much and i don't take tht for granted &#129401;<br><br>
-      the kind of bsf tht checks on u, roasts u, threatens to hit u, and somehow still makes u feel like the luckiest person in the room &#128514;&#129782;<br><br>
-      have the best birthday okay. eat way too much cake.<br><br>
-      cheers to u being a bit older, more unbothered and still living in the same era as me &#127874;&#129782;&#129401;
-    </div>
+    <div class="msg-text" id="msg-text-body"></div>
     <div class="msg-sign">— ur bsf, always &#128151;</div>
   </div>
   <button class="next-btn" onclick="goTo(6)" style="flex-shrink:0;">almost done &#129782;</button>
@@ -425,7 +511,21 @@ button,.key,.next-btn,.btn,.game-yes-btn,.btn-no,.nav-dot,.photo-stage,.play-btn
     <div class="audio-label">she actually sang this &#128557;&#128151;</div>
   </div>
   <audio id="sayu-audio" src="{audio_src}" preload="metadata"></audio>
-  <button class="next-btn" onclick="goTo(8)" style="margin-top:0.8rem;">last page &#127874;</button>
+  <button class="next-btn" onclick="goTo(8)" style="margin-top:0.8rem;">keep going &#128151;</button>
+</div>
+
+<!-- PAGE: RATE ME -->
+<div class="page" id="page-rate">
+  <div class="section-label">rate ur bestie (by me, 100% unbiased) &#128202;</div>
+  <div class="rate-wrap" id="rate-wrap"></div>
+  <button class="next-btn" onclick="goTo(9)">next &#128151;</button>
+</div>
+
+<!-- PAGE: PLAYLIST -->
+<div class="page" id="page-playlist">
+  <div class="section-label">songs tht remind me of u &#127925;</div>
+  <div class="playlist-wrap" id="playlist-wrap"></div>
+  <button class="next-btn" onclick="goTo(10)">last page &#127874;</button>
 </div>
 
 <!-- PAGE 9: ENDING -->
@@ -453,13 +553,14 @@ button,.key,.next-btn,.btn,.game-yes-btn,.btn-no,.nav-dot,.photo-stage,.play-btn
 // double-tap-to-zoom). That's what makes buttons feel unresponsive.
 // Fix: on touchend, immediately fire the click ourselves instead of
 // waiting for the browser to translate the touch on its own.
-const TAP_SELECTOR = '.key,.next-btn,.btn,.game-yes-btn,.btn-no,.nav-dot,.photo-stage,.play-btn,#progress-wrap,#tap-overlay';
+const TAP_SELECTOR = '.key,.next-btn,.btn,.game-yes-btn,.btn-no,.nav-dot,.photo-stage,.play-btn,.audio-progress-wrap,#tap-overlay,.track-play-btn,.track-progress-wrap';
 document.addEventListener('touchend', function(e) {{
   const target = e.target.closest(TAP_SELECTOR);
   if (!target) return;
   e.preventDefault();
-  if (target.id === 'progress-wrap') {{
-    seekAudio(e);
+  if (target.classList.contains('audio-progress-wrap') || target.classList.contains('track-progress-wrap')) {{
+    const t = e.changedTouches[0];
+    target.dispatchEvent(new MouseEvent('click', {{clientX: t ? t.clientX : 0, bubbles: true, cancelable: true}}));
   }} else {{
     target.click();
   }}
@@ -477,8 +578,8 @@ document.addEventListener('DOMContentLoaded', () => {{
 
 // ---- PAGE SYSTEM ----
 let currentPage = 0;
-const pageIds = ['page-lock','page-hero','page-countdown','page-photos','page-game','page-msg','page-facts','page-audio','page-ending'];
-const totalNavPages = 8;
+const pageIds = ['page-lock','page-hero','page-countdown','page-photos','page-game','page-msg','page-facts','page-audio','page-rate','page-playlist','page-ending'];
+const totalNavPages = 10;
 
 function goTo(idx) {{
   const prev = document.getElementById(pageIds[currentPage]);
@@ -494,6 +595,7 @@ function goTo(idx) {{
   const dots = document.querySelectorAll('.nav-dot');
   dots.forEach((d,i) => d.classList.toggle('active', i === idx - 1));
   if (idx > 0) document.getElementById('nav-dots').style.display = 'flex';
+  if (pageIds[idx] === 'page-rate') setTimeout(animateRateStats, 60);
 }}
 
 // ---- LOCK ----
@@ -610,6 +712,94 @@ function setNum(id,val){{
   el.textContent=str;
 }}
 updateCountdown(); setInterval(updateCountdown,1000);
+
+// ---- RATE ME ----
+const rateStats = [
+  {{label:'reply speed', score:3, caption:'somewhere between instant and 3 business days'}},
+  {{label:'meme game', score:9, caption:'certified menace'}},
+  {{label:'chaos energy', score:10, caption:'unmatched, no notes'}},
+  {{label:'slap threat frequency', score:10, caption:'daily. consistent. reliable.'}},
+  {{label:'roast accuracy', score:8, caption:'hurts cuz its true'}},
+  {{label:'overall bestie rating', score:11, caption:'off the charts, no competition'}},
+];
+const rateWrap = document.getElementById('rate-wrap');
+rateStats.forEach((s,i) => {{
+  const row = document.createElement('div');
+  row.className = 'stat-row';
+  row.innerHTML =
+    '<div class="stat-top"><span class="stat-label">'+s.label+'</span><span class="stat-score">'+s.score+'/10</span></div>'+
+    '<div class="stat-bar"><div class="stat-fill" id="stat-fill-'+i+'"></div></div>'+
+    '<div class="stat-caption">'+s.caption+'</div>';
+  rateWrap.appendChild(row);
+}});
+let rateAnimated = false;
+function animateRateStats(){{
+  if (rateAnimated) return;
+  rateAnimated = true;
+  rateStats.forEach((s,i) => {{
+    const fill = document.getElementById('stat-fill-'+i);
+    if(fill) setTimeout(()=>{{ fill.style.width = Math.min(s.score,10)*10+'%'; }}, 80*i);
+  }});
+}}
+
+// ---- PLAYLIST ----
+const playlistSongs = {songs_js};
+const playlistWrap = document.getElementById('playlist-wrap');
+let currentPlayingTrack = null;
+playlistSongs.forEach((song,i) => {{
+  const card = document.createElement('div');
+  card.className = 'track-card';
+  const artistHtml = song.artist ? '<div class="track-artist">'+song.artist+'</div>' : '';
+  const noteHtml = song.note ? '<div class="track-note">'+song.note+'</div>' : '';
+  const barHtml = song.src
+    ? '<div class="track-progress-wrap" id="track-progress-wrap-'+i+'"><div class="track-progress-fill" id="track-progress-fill-'+i+'"></div></div>'
+    : '<div class="track-missing">add song'+song.n+'.mp3 to enable playback</div>';
+  card.innerHTML =
+    '<button class="track-play-btn" id="track-play-'+i+'">&#9654;&#65039;</button>'+
+    '<div class="track-info">'+
+      '<div class="track-title">'+song.title+'</div>'+
+      artistHtml + noteHtml + barHtml +
+    '</div>';
+  playlistWrap.appendChild(card);
+
+  if (song.src) {{
+    const trackAudio = new Audio(song.src);
+    const playBtnEl = card.querySelector('#track-play-'+i);
+    const progWrap = card.querySelector('#track-progress-wrap-'+i);
+    const progFill = card.querySelector('#track-progress-fill-'+i);
+    playBtnEl.addEventListener('click', () => {{
+      if (currentPlayingTrack && currentPlayingTrack !== trackAudio) currentPlayingTrack.pause();
+      if (trackAudio.paused) {{
+        trackAudio.play();
+        playBtnEl.innerHTML = '&#9646;&#9646;';
+        currentPlayingTrack = trackAudio;
+      }} else {{
+        trackAudio.pause();
+        playBtnEl.innerHTML = '&#9654;&#65039;';
+      }}
+    }});
+    trackAudio.addEventListener('pause', () => {{ playBtnEl.innerHTML = '&#9654;&#65039;'; }});
+    trackAudio.addEventListener('play', () => {{ playBtnEl.innerHTML = '&#9646;&#9646;'; }});
+    trackAudio.addEventListener('timeupdate', () => {{
+      if (trackAudio.duration) progFill.style.width = (trackAudio.currentTime/trackAudio.duration*100)+'%';
+    }});
+    trackAudio.addEventListener('ended', () => {{ progFill.style.width = '0%'; }});
+    progWrap.addEventListener('click', (e) => {{
+      if (!trackAudio.duration) return;
+      const rect = progWrap.getBoundingClientRect();
+      const pct = (e.clientX - rect.left) / rect.width;
+      trackAudio.currentTime = Math.min(Math.max(pct,0),1) * trackAudio.duration;
+    }});
+  }}
+}});
+
+// ---- BIRTHDAY MESSAGE (driven by message.txt) ----
+const messageParagraphs = {message_paragraphs_js};
+function escapeHtml(s){{
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}}
+document.getElementById('msg-text-body').innerHTML =
+  messageParagraphs.map(p => escapeHtml(p)).join('<br><br>');
 
 // ---- FUN FACTS (scattered, driven by facts.txt) ----
 const funFacts = {fun_facts_js};
