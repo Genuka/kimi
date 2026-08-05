@@ -733,7 +733,7 @@ updateCountdown(); setInterval(updateCountdown,1000);
 // ---- RATE ME ----
 const rateStats = [
   {{label:'reply speed', score:3, caption:'somewhere between instant and 3 business days'}},
-  {{label:'meme game', score:9, caption:'certified menace'}},
+  {{label:'meme game', score:5, caption:'i hv better memes 😝'}},
   {{label:'chaos energy', score:10, caption:'unmatched, no notes'}},
   {{label:'slap threat frequency', score:10, caption:'daily. consistent. reliable.'}},
   {{label:'roast accuracy', score:8, caption:'hurts cuz its true'}},
