@@ -214,9 +214,6 @@ button,.key,.next-btn,.btn,.game-yes-btn,.btn-no,.nav-dot,.photo-stage,.play-btn
 .btn-primary:active{{transform:scale(0.96);}}
 .btn-outline{{background:white;color:#e879a0;border:2px solid #e879a0;}}
 .btn-outline:hover{{background:#fff0f5;transform:translateY(-3px);}}
-.btn-dev{{background:#1e1e2e;color:#a78bfa;border:1px dashed #a78bfa55;font-size:0.7rem;padding:0.55rem 1rem;}}
-.btn-dev:hover{{background:#2a2440;transform:translateY(-2px);}}
-.dev-badge{{display:inline-block;background:#1e1e2e;color:#a78bfa;font-size:0.6rem;font-family:monospace;padding:2px 6px;border-radius:4px;margin-left:4px;border:1px solid #a78bfa44;}}
 
 /* ROAST */
 .fact-card{{background:linear-gradient(135deg,#fdf2f8,#faf5ff);border-radius:20px;padding:1.2rem 1.5rem;text-align:center;border:1px solid rgba(232,121,160,0.15);transition:opacity 0.3s ease,transform 0.3s ease;min-height:100px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;width:100%;max-width:500px;}}
@@ -396,7 +393,6 @@ button,.key,.next-btn,.btn,.game-yes-btn,.btn-no,.nav-dot,.photo-stage,.play-btn
   <div class="btn-row">
     <button class="btn btn-primary" onclick="launchConfetti()">&#127881; Confetti!</button>
     <button class="btn btn-primary" onclick="heartShower()">&#128151; Hearts</button>
-    <button class="btn btn-dev" onclick="devMode()">&#9881;&#65039; dev 10s <span class="dev-badge">DEV</span></button>
   </div>
   <button class="next-btn" id="countdown-next-btn" onclick="goTo(3)" style="display:none;">next &#128151;</button>
   <div class="lock-hint" id="countdown-lock-msg">locked till her bday &#128274; come back on aug 6th &#128151;</div>
@@ -668,12 +664,7 @@ function heartShower() {{
 }}
 
 // ---- COUNTDOWN ----
-let devOffset=0,devActive=false,bdayTriggered=false,birthdayReached=false;
-function devMode(){{
-  const now=new Date(); const bday=getNextBirthday();
-  devOffset=Math.floor((bday-now)/1000)-10;
-  devActive=true; bdayTriggered=false; updateCountdown();
-}}
+let bdayTriggered=false,birthdayReached=false;
 function getNextBirthday(){{
   const now=new Date();
   let bday=new Date(now.getFullYear(),7,6,0,0,0);
@@ -693,7 +684,7 @@ function refreshLockUI(){{
 }}
 function updateCountdown(){{
   const now=new Date(); const bday=getNextBirthday();
-  let diff=Math.floor((bday-now)/1000)-(devActive?devOffset:0);
+  let diff=Math.floor((bday-now)/1000);
   if(diff<=0){{
     document.getElementById('countdown-inner').style.display='none';
     document.getElementById('bday-inner').style.display='block';
