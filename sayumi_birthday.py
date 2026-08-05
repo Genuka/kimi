@@ -1083,3 +1083,22 @@ function seekAudio(e) {{
 </html>"""
 
 components.html(html, height=750, scrolling=False)
+
+# ---- FALLBACK PLAYLIST PLAYER ----
+# The custom in-page player builds audio from base64 (data URI / blob URL) so
+# it can live inside the animated phone UI above. That approach is fighting
+# something in this hosting environment (fails even after the blob-URL fix),
+# so this uses Streamlit's own native audio player as a guaranteed-to-work
+# backup -- it streams the real file with correct headers, no encoding tricks.
+# Collapsed by default so it doesn't spoil anything before she reaches this
+# page for real.
+import os
+with st.expander("🎵 playlist (backup player)", expanded=False):
+    for i, meta in enumerate(song_meta, start=1):
+        for ext in ['mp3', 'mp4', 'm4a', 'wav', 'ogg']:
+            path = f"song{i}.{ext}"
+            if os.path.exists(path):
+                label = meta["title"] + (f" — {meta['artist']}" if meta["artist"] else "")
+                st.caption(label)
+                st.audio(path)
+                break
