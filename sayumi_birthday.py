@@ -788,16 +788,23 @@ playlistSongs.forEach((song,i) => {{
     playBtnEl.addEventListener('click', () => {{
       if (currentPlayingTrack && currentPlayingTrack !== trackAudio) currentPlayingTrack.pause();
       if (trackAudio.paused) {{
-        trackAudio.play();
-        playBtnEl.innerHTML = '&#9646;&#9646;';
         currentPlayingTrack = trackAudio;
+        trackAudio.play().catch(err => {{
+          console.error('Playback failed for track '+i+':', err);
+          playBtnEl.innerHTML = '&#9654;&#65039;';
+          progWrap && (progWrap.title = 'Playback error: '+err.message);
+        }});
       }} else {{
         trackAudio.pause();
-        playBtnEl.innerHTML = '&#9654;&#65039;';
       }}
     }});
     trackAudio.addEventListener('pause', () => {{ playBtnEl.innerHTML = '&#9654;&#65039;'; }});
     trackAudio.addEventListener('play', () => {{ playBtnEl.innerHTML = '&#9646;&#9646;'; }});
+    trackAudio.addEventListener('error', () => {{
+      const errCode = trackAudio.error ? trackAudio.error.code : 'unknown';
+      console.error('Audio element error for track '+i+', code:', errCode);
+      playBtnEl.innerHTML = '&#9654;&#65039;';
+    }});
     trackAudio.addEventListener('timeupdate', () => {{
       if (trackAudio.duration) progFill.style.width = (trackAudio.currentTime/trackAudio.duration*100)+'%';
     }});
