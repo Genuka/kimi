@@ -486,9 +486,23 @@ button,.key,.next-btn,.btn,.game-yes-btn,.btn-no,.nav-dot,.photo-stage,.play-btn
   <button class="next-btn" onclick="goTo(7)">next &#127874;</button>
 </div>
 
-<!-- PAGE 8: AUDIO -->
+<!-- PAGE: RATE ME -->
+<div class="page" id="page-rate">
+  <div class="section-label">rate ur bestie (by me, 100% unbiased) &#128202;</div>
+  <div class="rate-wrap" id="rate-wrap"></div>
+  <button class="next-btn" onclick="goTo(8)">next &#128151;</button>
+</div>
+
+<!-- PAGE: PLAYLIST -->
+<div class="page" id="page-playlist">
+  <div class="section-label">songs tht remind me of u &#127925;</div>
+  <div class="playlist-wrap" id="playlist-wrap"></div>
+  <button class="next-btn" onclick="goTo(9)">wait... one more &#128064;</button>
+</div>
+
+<!-- PAGE: HER SONG (bonus reveal) -->
 <div class="page" id="page-audio">
-  <div class="section-label">wait... is tht her singing? &#127908;</div>
+  <div class="section-label">oh sh*t... one more song &#128064;<br><span style="font-size:0.85em;opacity:0.85;">and it's her singing &#127908;</span></div>
   <div class="audio-card">
     <div class="audio-title">&#127925; Infected</div>
     <div class="audio-sub">featuring: sayumi live &#127908;</div>
@@ -511,21 +525,7 @@ button,.key,.next-btn,.btn,.game-yes-btn,.btn-no,.nav-dot,.photo-stage,.play-btn
     <div class="audio-label">she actually sang this &#128557;&#128151;</div>
   </div>
   <audio id="sayu-audio" src="{audio_src}" preload="metadata"></audio>
-  <button class="next-btn" onclick="goTo(8)" style="margin-top:0.8rem;">keep going &#128151;</button>
-</div>
-
-<!-- PAGE: RATE ME -->
-<div class="page" id="page-rate">
-  <div class="section-label">rate ur bestie (by me, 100% unbiased) &#128202;</div>
-  <div class="rate-wrap" id="rate-wrap"></div>
-  <button class="next-btn" onclick="goTo(9)">next &#128151;</button>
-</div>
-
-<!-- PAGE: PLAYLIST -->
-<div class="page" id="page-playlist">
-  <div class="section-label">songs tht remind me of u &#127925;</div>
-  <div class="playlist-wrap" id="playlist-wrap"></div>
-  <button class="next-btn" onclick="goTo(10)">last page &#127874;</button>
+  <button class="next-btn" onclick="goTo(10)" style="margin-top:0.8rem;">last page &#127874;</button>
 </div>
 
 <!-- PAGE 9: ENDING -->
@@ -578,7 +578,7 @@ document.addEventListener('DOMContentLoaded', () => {{
 
 // ---- PAGE SYSTEM ----
 let currentPage = 0;
-const pageIds = ['page-lock','page-hero','page-countdown','page-photos','page-game','page-msg','page-facts','page-audio','page-rate','page-playlist','page-ending'];
+const pageIds = ['page-lock','page-hero','page-countdown','page-photos','page-game','page-msg','page-facts','page-rate','page-playlist','page-audio','page-ending'];
 const totalNavPages = 10;
 
 function goTo(idx) {{
