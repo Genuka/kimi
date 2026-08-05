@@ -526,7 +526,7 @@ button,.key,.next-btn,.btn,.game-yes-btn,.btn-no,.nav-dot,.photo-stage,.play-btn
     </div>
     <div class="audio-label">she actually sang this &#128557;&#128151;</div>
   </div>
-  <audio id="sayu-audio" src="{audio_src}" preload="metadata"></audio>
+  <audio id="sayu-audio" preload="metadata"></audio>
   <button class="next-btn" onclick="goTo(10)" style="margin-top:0.8rem;">last page &#127874;</button>
 </div>
 
@@ -577,6 +577,39 @@ document.addEventListener('DOMContentLoaded', () => {{
     }}, {{once: true}});
   }}
 }});
+
+// ---- LARGE-AUDIO FIX ----
+// Assigning a multi-MB base64 data: URI directly to an <audio> element's src
+// (or new Audio(dataUri)) is unreliable in a lot of browsers/webviews once the
+// string gets into the multi-MB range -- it throws NotSupportedError even
+// though the underlying file is a perfectly valid mp3/ogg. Converting the
+// same bytes into a Blob and using an object URL (blob:...) instead is the
+// standard fix and avoids that limit entirely.
+function dataUriToBlobUrl(dataUri) {{
+  if (!dataUri) return null;
+  try {{
+    const commaIdx = dataUri.indexOf(',');
+    const meta = dataUri.substring(5, commaIdx); // "audio/mpeg;base64"
+    const mime = meta.split(';')[0];
+    const b64 = dataUri.substring(commaIdx + 1);
+    const byteChars = atob(b64);
+    const len = byteChars.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) bytes[i] = byteChars.charCodeAt(i);
+    const blob = new Blob([bytes], {{type: mime}});
+    return URL.createObjectURL(blob);
+  }} catch (err) {{
+    console.error('dataUriToBlobUrl failed:', err);
+    return null;
+  }}
+}}
+
+// ---- HER SONG (bonus reveal) ----
+const sayuAudioDataUri = {json.dumps(audio_src)};
+const sayuAudioEl = document.getElementById('sayu-audio');
+if (sayuAudioEl && sayuAudioDataUri) {{
+  sayuAudioEl.src = dataUriToBlobUrl(sayuAudioDataUri) || sayuAudioDataUri;
+}}
 
 // ---- PAGE SYSTEM ----
 let currentPage = 0;
@@ -781,7 +814,8 @@ playlistSongs.forEach((song,i) => {{
   playlistWrap.appendChild(card);
 
   if (song.src) {{
-    const trackAudio = new Audio(song.src);
+    const trackBlobUrl = dataUriToBlobUrl(song.src);
+    const trackAudio = new Audio(trackBlobUrl || song.src);
     const playBtnEl = card.querySelector('#track-play-'+i);
     const progWrap = card.querySelector('#track-progress-wrap-'+i);
     const progFill = card.querySelector('#track-progress-fill-'+i);
