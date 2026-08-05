@@ -94,49 +94,6 @@ def load_message(path="message.txt"):
 message_paragraphs = load_message()
 message_paragraphs_js = json.dumps(message_paragraphs, ensure_ascii=False)
 
-# load playlist from songs.txt (same folder as this script)
-# format, one per line: N. title — artist | optional note
-# audio files: song1.mp3, song2.mp3 ... (mp3/mp4/m4a/wav/ogg all work)
-def load_songs(path="songs.txt"):
-    default = [{"title": "must have been the wind", "artist": "", "note": ""}]
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            raw_lines = [l.strip() for l in f if l.strip()]
-    except FileNotFoundError:
-        return default
-    songs = []
-    for line in raw_lines:
-        m = re.match(r'^\d+\.\s*(.*)$', line)
-        if not m:
-            continue
-        rest = m.group(1)
-        note = ""
-        if '|' in rest:
-            rest, note = rest.split('|', 1)
-            note = note.strip()
-        rest = rest.strip()
-        if '—' in rest:
-            title, artist = rest.split('—', 1)
-        elif ' - ' in rest:
-            title, artist = rest.split(' - ', 1)
-        else:
-            title, artist = rest, ""
-        songs.append({"title": title.strip(), "artist": artist.strip(), "note": note})
-    return songs if songs else default
-
-song_meta = load_songs()
-_song_mime = {'mp3': 'audio/mpeg', 'mp4': 'video/mp4', 'm4a': 'audio/mp4', 'wav': 'audio/wav', 'ogg': 'audio/ogg'}
-songs_data = []
-for i, meta in enumerate(song_meta, start=1):
-    src = None
-    for ext in ['mp3', 'mp4', 'm4a', 'wav', 'ogg']:
-        b64 = img_to_b64(f"song{i}.{ext}")
-        if b64:
-            src = f"data:{_song_mime[ext]};base64,{b64}"
-            break
-    songs_data.append({"title": meta["title"], "artist": meta["artist"], "note": meta["note"], "src": src, "n": i})
-songs_js = json.dumps(songs_data, ensure_ascii=False)
-
 html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -373,7 +330,6 @@ button,.key,.next-btn,.btn,.game-yes-btn,.btn-no,.nav-dot,.photo-stage,.play-btn
   <button class="nav-dot" onclick="goTo(7)"></button>
   <button class="nav-dot" onclick="goTo(8)"></button>
   <button class="nav-dot" onclick="goTo(9)"></button>
-  <button class="nav-dot" onclick="goTo(10)"></button>
 </div>
 
 <!-- TAP OVERLAY -->
@@ -495,19 +451,12 @@ button,.key,.next-btn,.btn,.game-yes-btn,.btn-no,.nav-dot,.photo-stage,.play-btn
   <button class="next-btn" onclick="goTo(8)">next &#128151;</button>
 </div>
 
-<!-- PAGE: PLAYLIST -->
-<div class="page" id="page-playlist">
-  <div class="section-label">songs tht remind me of u &#127925;</div>
-  <div class="playlist-wrap" id="playlist-wrap"></div>
-  <button class="next-btn" onclick="goTo(9)">wait... one more &#128064;</button>
-</div>
-
-<!-- PAGE: HER SONG (bonus reveal) -->
+<!-- PAGE: HER SONG (unintentional leftover) -->
 <div class="page" id="page-audio">
-  <div class="section-label">oh sh*t... one more song &#128064;<br><span style="font-size:0.85em;opacity:0.85;">and it's her singing &#127908;</span></div>
+  <div class="section-label" style="opacity:0.85;">wait... this wasn't supposed to be in here &#128064;<br><span style="font-size:0.8em;opacity:0.7;">*quietly deletes evidence* jk keep it a sec</span></div>
   <div class="audio-card">
-    <div class="audio-title">&#127925; Infected</div>
-    <div class="audio-sub">featuring: sayumi live &#127908;</div>
+    <div class="audio-title">&#128260; leftover_clip_final_v2.ogg</div>
+    <div class="audio-sub">(u weren't supposed to hear this)</div>
     <div class="audio-visualizer" id="visualizer">
       <div class="audio-bar"></div><div class="audio-bar"></div>
       <div class="audio-bar"></div><div class="audio-bar"></div>
@@ -527,7 +476,7 @@ button,.key,.next-btn,.btn,.game-yes-btn,.btn-no,.nav-dot,.photo-stage,.play-btn
     <div class="audio-label">she actually sang this &#128557;&#128151;</div>
   </div>
   <audio id="sayu-audio" preload="metadata"></audio>
-  <button class="next-btn" onclick="goTo(10)" style="margin-top:0.8rem;">last page &#127874;</button>
+  <button class="next-btn" onclick="goTo(9)" style="margin-top:0.8rem;">last page &#127874;</button>
 </div>
 
 <!-- PAGE 9: ENDING -->
@@ -613,11 +562,19 @@ if (sayuAudioEl && sayuAudioDataUri) {{
 
 // ---- PAGE SYSTEM ----
 let currentPage = 0;
-const pageIds = ['page-lock','page-hero','page-countdown','page-photos','page-game','page-msg','page-facts','page-rate','page-playlist','page-audio','page-ending'];
-const totalNavPages = 10;
+const pageIds = ['page-lock','page-hero','page-countdown','page-photos','page-game','page-msg','page-facts','page-rate','page-audio','page-ending'];
+const totalNavPages = 9;
 
 function goTo(idx) {{
   if (idx > 2 && !birthdayReached) return; // locked until her actual birthday hits
+  // pause her singing clip the moment we leave that page, no matter how she leaves
+  if (pageIds[currentPage] === 'page-audio' && idx !== currentPage) {{
+    const sayuAudio = document.getElementById('sayu-audio');
+    if (sayuAudio && !sayuAudio.paused) sayuAudio.pause();
+    const pb = document.getElementById('play-btn');
+    if (pb) pb.innerHTML = '&#9654;&#65039;';
+    isPlaying = false;
+  }}
   const prev = document.getElementById(pageIds[currentPage]);
   const next = document.getElementById(pageIds[idx]);
   const goingForward = idx > currentPage;
@@ -792,65 +749,6 @@ function animateRateStats(){{
     if(fill) setTimeout(()=>{{ fill.style.width = Math.min(s.score,10)*10+'%'; }}, 80*i);
   }});
 }}
-
-// ---- PLAYLIST ----
-const playlistSongs = {songs_js};
-const playlistWrap = document.getElementById('playlist-wrap');
-let currentPlayingTrack = null;
-playlistSongs.forEach((song,i) => {{
-  const card = document.createElement('div');
-  card.className = 'track-card';
-  const artistHtml = song.artist ? '<div class="track-artist">'+song.artist+'</div>' : '';
-  const noteHtml = song.note ? '<div class="track-note">'+song.note+'</div>' : '';
-  const barHtml = song.src
-    ? '<div class="track-progress-wrap" id="track-progress-wrap-'+i+'"><div class="track-progress-fill" id="track-progress-fill-'+i+'"></div></div>'
-    : '<div class="track-missing">add song'+song.n+'.mp3 to enable playback</div>';
-  card.innerHTML =
-    '<button class="track-play-btn" id="track-play-'+i+'">&#9654;&#65039;</button>'+
-    '<div class="track-info">'+
-      '<div class="track-title">'+song.title+'</div>'+
-      artistHtml + noteHtml + barHtml +
-    '</div>';
-  playlistWrap.appendChild(card);
-
-  if (song.src) {{
-    const trackBlobUrl = dataUriToBlobUrl(song.src);
-    const trackAudio = new Audio(trackBlobUrl || song.src);
-    const playBtnEl = card.querySelector('#track-play-'+i);
-    const progWrap = card.querySelector('#track-progress-wrap-'+i);
-    const progFill = card.querySelector('#track-progress-fill-'+i);
-    playBtnEl.addEventListener('click', () => {{
-      if (currentPlayingTrack && currentPlayingTrack !== trackAudio) currentPlayingTrack.pause();
-      if (trackAudio.paused) {{
-        currentPlayingTrack = trackAudio;
-        trackAudio.play().catch(err => {{
-          console.error('Playback failed for track '+i+':', err);
-          playBtnEl.innerHTML = '&#9654;&#65039;';
-          progWrap && (progWrap.title = 'Playback error: '+err.message);
-        }});
-      }} else {{
-        trackAudio.pause();
-      }}
-    }});
-    trackAudio.addEventListener('pause', () => {{ playBtnEl.innerHTML = '&#9654;&#65039;'; }});
-    trackAudio.addEventListener('play', () => {{ playBtnEl.innerHTML = '&#9646;&#9646;'; }});
-    trackAudio.addEventListener('error', () => {{
-      const errCode = trackAudio.error ? trackAudio.error.code : 'unknown';
-      console.error('Audio element error for track '+i+', code:', errCode);
-      playBtnEl.innerHTML = '&#9654;&#65039;';
-    }});
-    trackAudio.addEventListener('timeupdate', () => {{
-      if (trackAudio.duration) progFill.style.width = (trackAudio.currentTime/trackAudio.duration*100)+'%';
-    }});
-    trackAudio.addEventListener('ended', () => {{ progFill.style.width = '0%'; }});
-    progWrap.addEventListener('click', (e) => {{
-      if (!trackAudio.duration) return;
-      const rect = progWrap.getBoundingClientRect();
-      const pct = (e.clientX - rect.left) / rect.width;
-      trackAudio.currentTime = Math.min(Math.max(pct,0),1) * trackAudio.duration;
-    }});
-  }}
-}});
 
 // ---- BIRTHDAY MESSAGE (driven by message.txt) ----
 const messageParagraphs = {message_paragraphs_js};
@@ -1083,22 +981,3 @@ function seekAudio(e) {{
 </html>"""
 
 components.html(html, height=750, scrolling=False)
-
-# ---- FALLBACK PLAYLIST PLAYER ----
-# The custom in-page player builds audio from base64 (data URI / blob URL) so
-# it can live inside the animated phone UI above. That approach is fighting
-# something in this hosting environment (fails even after the blob-URL fix),
-# so this uses Streamlit's own native audio player as a guaranteed-to-work
-# backup -- it streams the real file with correct headers, no encoding tricks.
-# Collapsed by default so it doesn't spoil anything before she reaches this
-# page for real.
-import os
-with st.expander("🎵 playlist (backup player)", expanded=False):
-    for i, meta in enumerate(song_meta, start=1):
-        for ext in ['mp3', 'mp4', 'm4a', 'wav', 'ogg']:
-            path = f"song{i}.{ext}"
-            if os.path.exists(path):
-                label = meta["title"] + (f" — {meta['artist']}" if meta["artist"] else "")
-                st.caption(label)
-                st.audio(path)
-                break
