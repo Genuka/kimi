@@ -137,6 +137,22 @@ for i, meta in enumerate(song_meta, start=1):
     songs_data.append({"title": meta["title"], "artist": meta["artist"], "note": meta["note"], "src": src, "n": i})
 songs_js = json.dumps(songs_data, ensure_ascii=False)
 
+# dev.txt controls whether the countdown-skip dev button shows up.
+# put "1" in dev.txt to show it (for testing), "0" (or delete the file) to hide it
+# before sending the real link to her.
+def load_dev_flag(path="dev.txt"):
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return f.read().strip() == "1"
+    except FileNotFoundError:
+        return False
+
+dev_enabled = load_dev_flag()
+dev_button_html = (
+    '<button class="btn btn-dev" onclick="devMode()">&#9881;&#65039; dev 10s <span class="dev-badge">DEV</span></button>'
+    if dev_enabled else ''
+)
+
 html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -182,6 +198,7 @@ button,.key,.next-btn,.btn,.game-yes-btn,.btn-no,.nav-dot,.photo-stage,.play-btn
 .nav-dots{{position:fixed;right:14px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:8px;z-index:200;}}
 .nav-dot{{width:8px;height:8px;border-radius:50%;background:rgba(232,121,160,0.3);cursor:pointer;transition:background 0.3s ease,transform 0.3s ease;border:none;outline:none;}}
 .nav-dot.active{{background:#e879a0;transform:scale(1.4);}}
+.nav-dot.locked{{opacity:0.25;cursor:not-allowed;pointer-events:none;}}
 
 /* NEXT BTN */
 .next-btn{{background:linear-gradient(135deg,#e879a0,#a78bfa);color:white;border:none;border-radius:50px;padding:0.65rem 1.8rem;font-size:0.82rem;font-family:'DM Sans',sans-serif;font-weight:500;cursor:pointer;transition:transform 0.2s ease,box-shadow 0.2s ease;box-shadow:0 4px 20px rgba(232,121,160,0.3);flex-shrink:0;}}
@@ -439,9 +456,10 @@ button,.key,.next-btn,.btn,.game-yes-btn,.btn-no,.nav-dot,.photo-stage,.play-btn
   <div class="btn-row">
     <button class="btn btn-primary" onclick="launchConfetti()">&#127881; Confetti!</button>
     <button class="btn btn-primary" onclick="heartShower()">&#128151; Hearts</button>
-    <button class="btn btn-dev" onclick="devMode()">&#9881;&#65039; dev 10s <span class="dev-badge">DEV</span></button>
+    {dev_button_html}
   </div>
-  <button class="next-btn" onclick="goTo(3)">next &#128151;</button>
+  <button class="next-btn" id="countdown-next-btn" onclick="goTo(3)" style="display:none;">next &#128151;</button>
+  <div class="lock-hint" id="countdown-lock-msg">locked till her bday &#128274; come back on aug 6th &#128151;</div>
 </div>
 
 <!-- PAGE 3: PHOTOS -->
@@ -488,7 +506,7 @@ button,.key,.next-btn,.btn,.game-yes-btn,.btn-no,.nav-dot,.photo-stage,.play-btn
 
 <!-- PAGE: RATE ME -->
 <div class="page" id="page-rate">
-  <div class="section-label">rate ur bestie (by me, 100% unbiased) &#128202;</div>
+  <div class="section-label">rating my bsf &#128202;</div>
   <div class="rate-wrap" id="rate-wrap"></div>
   <button class="next-btn" onclick="goTo(8)">next &#128151;</button>
 </div>
@@ -582,6 +600,7 @@ const pageIds = ['page-lock','page-hero','page-countdown','page-photos','page-ga
 const totalNavPages = 10;
 
 function goTo(idx) {{
+  if (idx > 2 && !birthdayReached) return; // locked until her actual birthday hits
   const prev = document.getElementById(pageIds[currentPage]);
   const next = document.getElementById(pageIds[idx]);
   const goingForward = idx > currentPage;
@@ -675,7 +694,7 @@ function heartShower() {{
 }}
 
 // ---- COUNTDOWN ----
-let devOffset=0,devActive=false,bdayTriggered=false;
+let devOffset=0,devActive=false,bdayTriggered=false,birthdayReached=false;
 function devMode(){{
   const now=new Date(); const bday=getNextBirthday();
   devOffset=Math.floor((bday-now)/1000)-10;
@@ -687,6 +706,17 @@ function getNextBirthday(){{
   if(now>=bday) bday.setFullYear(bday.getFullYear()+1);
   return bday;
 }}
+function refreshLockUI(){{
+  const dots = document.querySelectorAll('.nav-dot');
+  dots.forEach((d,i) => {{
+    const pageIdx = i+1;
+    if (pageIdx > 2 && !birthdayReached) d.classList.add('locked'); else d.classList.remove('locked');
+  }});
+  const nextBtn = document.getElementById('countdown-next-btn');
+  const lockMsg = document.getElementById('countdown-lock-msg');
+  if (nextBtn) nextBtn.style.display = birthdayReached ? 'inline-block' : 'none';
+  if (lockMsg) lockMsg.style.display = birthdayReached ? 'none' : 'block';
+}}
 function updateCountdown(){{
   const now=new Date(); const bday=getNextBirthday();
   let diff=Math.floor((bday-now)/1000)-(devActive?devOffset:0);
@@ -694,6 +724,8 @@ function updateCountdown(){{
     document.getElementById('countdown-inner').style.display='none';
     document.getElementById('bday-inner').style.display='block';
     if(!bdayTriggered){{bdayTriggered=true;launchConfetti();setTimeout(()=>launchConfetti(),600);}}
+    birthdayReached=true;
+    refreshLockUI();
     return;
   }}
   bdayTriggered=false;
@@ -703,6 +735,7 @@ function updateCountdown(){{
   setNum('cd-hours',Math.floor((diff%86400)/3600));
   setNum('cd-mins',Math.floor((diff%3600)/60));
   setNum('cd-secs',diff%60);
+  refreshLockUI();
 }}
 let prevVals={{}};
 function setNum(id,val){{
@@ -720,14 +753,15 @@ const rateStats = [
   {{label:'chaos energy', score:10, caption:'unmatched, no notes'}},
   {{label:'slap threat frequency', score:10, caption:'daily. consistent. reliable.'}},
   {{label:'roast accuracy', score:8, caption:'hurts cuz its true'}},
-  {{label:'overall bestie rating', score:11, caption:'off the charts, no competition'}},
+  {{label:'overall bestie rating', score:10, display:'&#8734;/10', caption:'off the charts, no competition'}},
 ];
 const rateWrap = document.getElementById('rate-wrap');
 rateStats.forEach((s,i) => {{
   const row = document.createElement('div');
   row.className = 'stat-row';
+  const scoreText = s.display ? s.display : (s.score+'/10');
   row.innerHTML =
-    '<div class="stat-top"><span class="stat-label">'+s.label+'</span><span class="stat-score">'+s.score+'/10</span></div>'+
+    '<div class="stat-top"><span class="stat-label">'+s.label+'</span><span class="stat-score">'+scoreText+'</span></div>'+
     '<div class="stat-bar"><div class="stat-fill" id="stat-fill-'+i+'"></div></div>'+
     '<div class="stat-caption">'+s.caption+'</div>';
   rateWrap.appendChild(row);
