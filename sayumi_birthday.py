@@ -98,11 +98,11 @@ html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
 *{{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}}
-html,body{{touch-action:manipulation;}}
+html,body{{touch-action:manipulation;overscroll-behavior:none;}}
 body{{font-family:'DM Sans',sans-serif;overflow:hidden;width:100vw;height:100vh;background:#fff0f5;}}
 button,.key,.next-btn,.btn,.game-yes-btn,.btn-no,.nav-dot,.photo-stage,.play-btn,#progress-wrap,#tap-overlay{{touch-action:manipulation;}}
 #confetti-canvas{{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9999;}}
@@ -117,9 +117,11 @@ button,.key,.next-btn,.btn,.game-yes-btn,.btn-no,.nav-dot,.photo-stage,.play-btn
   flex-direction:column;
   transition:opacity 0.55s ease,transform 0.55s ease;
   opacity:0;pointer-events:none;transform:translateY(30px);
-  z-index:100;padding:1.2rem 1.2rem 1.2rem;
+  z-index:100;
+  padding:calc(1.2rem + env(safe-area-inset-top)) calc(1.2rem + env(safe-area-inset-right)) calc(1.2rem + env(safe-area-inset-bottom)) calc(1.2rem + env(safe-area-inset-left));
   background:linear-gradient(135deg,#fff0f5 0%,#fef9ff 40%,#f0f4ff 100%);
   overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
   gap:0.8rem;
 }}
 .page.active{{opacity:1;pointer-events:all;transform:translateY(0);}}
@@ -137,8 +139,9 @@ button,.key,.next-btn,.btn,.game-yes-btn,.btn-no,.nav-dot,.photo-stage,.play-btn
 
 /* NAV DOTS */
 .nav-dots{{position:fixed;right:14px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:8px;z-index:200;}}
-.nav-dot{{width:8px;height:8px;border-radius:50%;background:rgba(232,121,160,0.3);cursor:pointer;transition:background 0.3s ease,transform 0.3s ease;border:none;outline:none;}}
-.nav-dot.active{{background:#e879a0;transform:scale(1.4);}}
+.nav-dot{{position:relative;width:32px;height:32px;background:transparent;border:none;outline:none;cursor:pointer;padding:0;}}
+.nav-dot::after{{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:8px;height:8px;border-radius:50%;background:rgba(232,121,160,0.3);transition:background 0.3s ease,transform 0.3s ease;}}
+.nav-dot.active::after{{background:#e879a0;transform:translate(-50%,-50%) scale(1.4);}}
 .nav-dot.locked{{opacity:0.25;cursor:not-allowed;pointer-events:none;}}
 
 /* NEXT BTN */
@@ -980,4 +983,4 @@ function seekAudio(e) {{
 </body>
 </html>"""
 
-components.html(html, height=750, scrolling=False)
+components.html(html, height=860, scrolling=False)
