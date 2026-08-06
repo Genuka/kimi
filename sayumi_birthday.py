@@ -11,6 +11,7 @@ st.markdown("""
 <style>
 #MainMenu, footer, header, .stDeployButton { visibility: hidden; }
 .block-container { padding: 0 !important; max-width: 100% !important; }
+:root, html, body, .stApp { color-scheme: light !important; background-color: #fff0f5 !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -99,10 +100,13 @@ html = f"""<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#fff0f5">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
 *{{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}}
-html,body{{touch-action:manipulation;overscroll-behavior:none;}}
+:root{{color-scheme:light;}}
+html,body{{touch-action:manipulation;overscroll-behavior:none;color-scheme:light;}}
 body{{font-family:'DM Sans',sans-serif;overflow:hidden;width:100vw;height:100vh;background:#fff0f5;}}
 button,.key,.next-btn,.btn,.game-yes-btn,.btn-no,.nav-dot,.photo-stage,.play-btn,#progress-wrap,#tap-overlay{{touch-action:manipulation;}}
 #confetti-canvas{{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9999;}}
